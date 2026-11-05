@@ -1,0 +1,21 @@
+*.iml
+.gradle/
+.kotlin/
+build/
+local.properties
+.idea/
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# dev-server data (OSM extracts, built graphs, tiles) — large, regenerable
+dev-server/data/
+dev-server/.env
+
+# Secrets: copy secrets.properties.example -> secrets.properties
+secrets.properties
