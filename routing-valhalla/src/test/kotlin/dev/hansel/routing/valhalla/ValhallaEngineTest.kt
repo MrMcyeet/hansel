@@ -266,11 +266,14 @@ class ValhallaEngineTest {
         val LEG2 = listOf(LatLng(31.3271, -89.2903), LatLng(30.6000, -89.6000), LatLng(29.9511, -90.0715))
         val ALT = listOf(LatLng(32.2988, -90.1848), LatLng(31.0000, -89.0000), LatLng(29.9511, -90.0715))
 
+        private fun String.jsonEscaped(): String = replace("\\", "\\\\").replace("\"", "\\\"")
+
         /** Structurally mirrors a real Valhalla `/route` JSON answer: trip with two legs plus one alternate trip. */
         fun twoLegTripWithAlternate(): String {
-            val leg1 = Polyline.encode(LEG1, 6)
-            val leg2 = Polyline.encode(LEG2, 6)
-            val alt = Polyline.encode(ALT, 6)
+            // Encoded polylines may contain backslashes and quotes, so JSON-escape them like a real server would.
+            val leg1 = Polyline.encode(LEG1, 6).jsonEscaped()
+            val leg2 = Polyline.encode(LEG2, 6).jsonEscaped()
+            val alt = Polyline.encode(ALT, 6).jsonEscaped()
             return """
             {
               "trip": {

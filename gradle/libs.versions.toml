@@ -1,5 +1,5 @@
 [versions]
-agp = "8.13.2"
+agp = "9.5.1"
 kotlin = "2.4.20"
 ksp = "2.3.13"
 coroutines = "1.11.0"
@@ -84,7 +84,6 @@ plugin-ksp = { module = "com.google.devtools.ksp:com.google.devtools.ksp.gradle.
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
