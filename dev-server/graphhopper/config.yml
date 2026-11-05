@@ -1,0 +1,89 @@
+# GraphHopper 11.x server config for the Hansel dev server.
+# Derived from upstream config-example.yml (checked 2026-11-05):
+#   https://github.com/graphhopper/graphhopper/blob/master/config-example.yml
+# Mounted read-only at /data/config.yml; datareader.file and graph.location are supplied on the
+# command line by graphhopper.sh (-i / -o), so they are left empty here.
+
+graphhopper:
+  datareader.file: ""
+  graph.location: /data/graph-cache
+
+  ##### Profiles #####
+  # One car profile. It uses the built-in car.json custom model (loaded from the GraphHopper
+  # classpath by name), so requests may send their own `custom_model` with `ch.disable=true`
+  # to extend it (avoid tolls, prefer/avoid road classes, etc. - DESIGN.md §5, §6.5).
+  profiles:
+    - name: car
+      turn_costs:
+        vehicle_types: [motorcar, motor_vehicle]
+        u_turn_costs: 60
+      custom_model_files: [car.json]
+
+  # Speed mode (CH): fast default requests. Alternative routes work with CH too.
+  profiles_ch:
+    - profile: car
+
+  # Hybrid mode (LM): makes `ch.disable=true` + request custom_model fast enough for 300 km
+  # trips. Request custom models may only *increase* edge weights (lower priority / cap speed);
+  # a model that lowers weights is rejected by the server - send `lm.disable=true` in that case
+  # to fall back to plain flexible routing.
+  profiles_lm:
+    - profile: car
+
+  ##### Encoded values #####
+  # car.json needs: car_access, car_average_speed, road_access, max_speed, ferry_speed, road_environment.
+  # The app's custom models additionally reference: toll, road_class, surface.
+  # roundabout + road_class_link improve turn instructions.
+  graph.encoded_values: |
+    car_access, car_average_speed, road_access, road_class, road_class_link, road_environment,
+    roundabout, toll, surface, max_speed, ferry_speed
+
+  ##### Routing limits #####
+  # Flexible (non-CH) routing explores many nodes on a 300 km trip. The 3-state graph is a few
+  # million nodes, so 5M is a generous cap that still prevents runaway requests.
+  routing.max_visited_nodes: 5000000
+  # Max beeline distance between consecutive waypoints for non-CH requests (meters). 1000 km
+  # comfortably covers anything inside MS+LA+AL.
+  routing.non_ch.max_waypoint_distance: 1000000
+  routing.timeout_ms: 60000
+  routing.snap_preventions_default: tunnel, bridge, ferry
+
+  ##### Import / storage #####
+  # Car-only server: skip non-motorized ways to shrink the graph and speed up import + CH prep.
+  import.osm.ignored_highways: footway,construction,cycleway,path,steps,pedestrian,bridleway
+  prepare.min_network_size: 200
+  prepare.subnetworks.threads: 1
+  prepare.ch.threads: 1
+  prepare.lm.threads: 1
+  graph.dataaccess.default_type: RAM
+  datareader.preferred_language: en
+
+# Dropwizard server configuration
+server:
+  application_connectors:
+    - type: http
+      port: 8989
+      # Must be reachable from the phone over the LAN; Docker publishes the port.
+      bind_host: 0.0.0.0
+      max_request_header_size: 50k
+  request_log:
+    appenders: []
+  admin_connectors:
+    - type: http
+      port: 8990
+      bind_host: localhost
+
+logging:
+  appenders:
+    - type: console
+      time_zone: UTC
+      log_format: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  loggers:
+    "com.graphhopper.osm_warnings":
+      level: DEBUG
+      additive: false
+      appenders:
+        - type: file
+          currentLogFilename: /data/logs/osm_warnings.log
+          archive: false
+          logFormat: '[%level] %msg%n'
