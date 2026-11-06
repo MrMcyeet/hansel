@@ -15,8 +15,8 @@ data class HanselSettings(
     val shadowEngine: EngineId = EngineId.VALHALLA,
     /** Only used to fetch the hosted style JSON once per theme during the offline build, and as the online map fallback before any region is installed. */
     val protomapsKey: String = "6d0170c0f856240d",
-    /** Zoom cap for extracted tiles; 15 is Protomaps' max and roughly doubles the size of 14. */
-    val tilesMaxZoom: Int = 15,
+    /** Zoom cap for extracted tiles. 14 ≈ 0.5 GB for MS+LA+AL; 15 (Protomaps' max, building footprints) ≈ 1 GB. */
+    val tilesMaxZoom: Int = 14,
     /** The first-launch setup card was dismissed without installing anything. */
     val setupDismissed: Boolean = false,
     val mapTheme: String = "dark",

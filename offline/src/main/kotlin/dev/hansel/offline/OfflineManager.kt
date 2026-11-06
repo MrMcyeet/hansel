@@ -68,10 +68,11 @@ class OfflineManager(
     fun region(id: String): CatalogRegion? = catalog.byId(id)
     fun installedRegionIds(): List<String> = _status.value.manifest.regions.map { it.region.id }
 
-    /** The user's state plus its neighbours, in a sensible order, for the setup screen. */
+    /** The user's state (both, near a border) plus neighbours, for the setup screen. */
     fun suggestedRegions(here: LatLng?): List<CatalogRegion> {
-        val home = here?.let { regionAt(it) } ?: return emptyList()
-        return listOf(home) + home.neighbours.mapNotNull { catalog.byId(it) }
+        val homes = here?.let { catalog.regionsAt(it) }.orEmpty()
+        if (homes.isEmpty()) return emptyList()
+        return (homes + homes.flatMap { h -> h.neighbours.mapNotNull { catalog.byId(it) } }).distinctBy { it.id }
     }
 
     data class Estimate(
@@ -91,13 +92,13 @@ class OfflineManager(
             val len = runCatching {
                 http.newCall(Request.Builder().url(r.pbfUrl).head().build()).execute().use { it.header("Content-Length")?.toLongOrNull() }
             }.getOrNull()
-            download += len ?: r.approxBytes ?: 150_000_000L
+            download += len ?: 150_000_000L
         }
         val tiles = runCatching {
-            val build = ProtomapsBuilds.latestUrl { url -> http.newCall(Request.Builder().url(url).build()).execute().use { it.body.string() } }
-            val b = regions.map { it.bbox }
+            val (buildUrl, _) = ProtomapsBuilds.latestUrl { url -> http.newCall(Request.Builder().url(url).build()).execute().use { it.body.string() } }
+            val b = regions.mapNotNull { it.bbox }
             val bbox = dev.hansel.model.BoundingBox(b.minOf { it.south }, b.minOf { it.west }, b.maxOf { it.north }, b.maxOf { it.east }).expandedBy(5_000.0)
-            PmTilesExtractor.estimateBytes(build.url, bbox, tilesMaxZoom, http)
+            PmTilesExtractor.estimateBytes(buildUrl, bbox, tilesMaxZoom, http)
         }.getOrNull()
         val graph = (download * 0.9).toLong()
         // Import throughput on a flagship phone is on the order of 2–4 MB of PBF per second including CH; downloads

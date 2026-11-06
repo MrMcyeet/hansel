@@ -86,8 +86,7 @@ class HttpRangeSource(
             resp.header("ETag")?.let { etag = it }
             resp.header("Accept-Ranges")?.let { acceptsRanges = it.equals("bytes", ignoreCase = true) }
             resp.header("Content-Range")?.substringAfter('/', "")?.toLongOrNull()?.let { totalSize = it }
-            val body = resp.body ?: throw IOException("empty body")
-            val bytes = body.bytes()
+            val bytes = resp.body.bytes()
             if (bytes.size > length) throw IOException("server returned ${bytes.size} bytes for a $length-byte range")
             return bytes
         }

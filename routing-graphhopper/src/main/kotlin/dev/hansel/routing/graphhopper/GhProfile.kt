@@ -76,15 +76,17 @@ object GhProfile {
      * @param osmFile the merged `.osm.pbf` (importer) or an `.osm`/`.osm.xml` (tests); null when only loading.
      * @param dataAccess `MMAP` for loading on the phone (the graph stays off-heap; `setAllowWrites(false)` turns it into
      *   `MMAP_RO`). `RAM_STORE` is faster for import on machines with heap to spare.
+     * @param minNetworkSize import-only (not part of the profile hash): subnetworks with fewer edges are removed.
+     *   Tests with tiny hand-written maps pass 0; real imports keep [MIN_NETWORK_SIZE].
      */
-    fun config(graphDir: File, osmFile: File? = null, dataAccess: String = "MMAP"): GraphHopperConfig =
+    fun config(graphDir: File, osmFile: File? = null, dataAccess: String = "MMAP", minNetworkSize: Int = MIN_NETWORK_SIZE): GraphHopperConfig =
         GraphHopperConfig().apply {
             putObject("graph.location", graphDir.absolutePath)
             if (osmFile != null) putObject("datareader.file", osmFile.absolutePath)
             putObject("graph.dataaccess.default_type", dataAccess)
             putObject("graph.encoded_values", ENCODED_VALUES)
             putObject("import.osm.ignored_highways", IGNORED_HIGHWAYS.joinToString(","))
-            putObject("prepare.min_network_size", MIN_NETWORK_SIZE)
+            putObject("prepare.min_network_size", minNetworkSize)
             putObject("prepare.subnetworks.threads", 1)
             putObject("prepare.ch.threads", 1)
             putObject("routing.max_visited_nodes", MAX_VISITED_NODES)
@@ -96,19 +98,62 @@ object GhProfile {
         }
 
     /**
-     * A GraphHopper instance configured with [config]. The importer calls `importAndClose()` on it; the engine calls
-     * `setAllowWrites(false)` then `load()`.
+     * A GraphHopper instance configured with [config]. The importer calls `importOrLoad()`/`importAndClose()` on it;
+     * the engine calls `setAllowWrites(false)` then `load()`.
+     * @param strictInterpreter see [HanselGraphHopper].
+     * @param minNetworkSize see [config].
+     * @param onStage import-pipeline stage callback (see [GraphImporter.Stage]); ignored when only loading.
      */
-    fun newGraphHopper(graphDir: File, osmFile: File? = null, dataAccess: String = "MMAP", strictInterpreter: Boolean = false): GraphHopper =
-        HanselGraphHopper(strictInterpreter).init(config(graphDir, osmFile, dataAccess))
+    fun newGraphHopper(
+        graphDir: File,
+        osmFile: File? = null,
+        dataAccess: String = "MMAP",
+        strictInterpreter: Boolean = false,
+        minNetworkSize: Int = MIN_NETWORK_SIZE,
+        onStage: ((GraphImporter.Stage) -> Unit)? = null,
+    ): GraphHopper = HanselGraphHopper(strictInterpreter, onStage).init(config(graphDir, osmFile, dataAccess, minNetworkSize))
 }
 
 /**
  * [GraphHopper] whose weightings are produced by [InterpretedWeightingFactory] (no Janino, so it works on ART).
+ *
+ * GraphHopper 11.1 routes every weighting creation (`checkProfilesConsistency`, CH preparation, the `Router`) through
+ * the protected `createWeightingFactory()`, so overriding it is the single seam needed.
+ *
  * @param strictInterpreter when true, a custom model the interpreter cannot evaluate is an error instead of a
  *   Janino fallback; tests use it to prove the models the app sends never need Janino.
+ * @param onStage called from the protected import hooks (`importOSM`, `postImportOSM`, `cleanUp`, `loadOrPrepareCH`,
+ *   `flush`) so [GraphImporter] can report progress without an slf4j binding.
  */
-class HanselGraphHopper(private val strictInterpreter: Boolean = false) : GraphHopper() {
+class HanselGraphHopper(
+    private val strictInterpreter: Boolean = false,
+    private val onStage: ((GraphImporter.Stage) -> Unit)? = null,
+) : GraphHopper() {
     override fun createWeightingFactory(): WeightingFactory =
         InterpretedWeightingFactory(baseGraph, encodingManager, janinoFallback = !strictInterpreter)
+
+    override fun importOSM() {
+        onStage?.invoke(GraphImporter.Stage.READING_OSM)
+        super.importOSM()
+    }
+
+    override fun postImportOSM() {
+        onStage?.invoke(GraphImporter.Stage.BUILDING_GRAPH)
+        super.postImportOSM()
+    }
+
+    override fun cleanUp() {
+        onStage?.invoke(GraphImporter.Stage.SUBNETWORKS)
+        super.cleanUp()
+    }
+
+    override fun loadOrPrepareCH(closeEarly: Boolean) {
+        onStage?.invoke(GraphImporter.Stage.PREPARING_CH)
+        super.loadOrPrepareCH(closeEarly)
+    }
+
+    override fun flush() {
+        onStage?.invoke(GraphImporter.Stage.FLUSHING)
+        super.flush()
+    }
 }

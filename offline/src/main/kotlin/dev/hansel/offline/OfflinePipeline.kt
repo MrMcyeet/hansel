@@ -82,11 +82,9 @@ class OfflinePipeline(
                 sourcePbf = if (pbfs.size == 1) pbfs.single() else {
                     report(JobProgress.Phase.MERGING, "Merging ${pbfs.size} extracts")
                     val merged = layout.mergedPbf
-                    val tmp = File(merged.path + ".tmp")
-                    PbfMerger.merge(pbfs, tmp) { p ->
-                        report(JobProgress.Phase.MERGING, "Merging: ${p.nodes} nodes · ${p.ways} ways · ${mb(p.bytesWritten)} MB written", p.fraction)
+                    PbfMerger.merge(pbfs, merged) { p ->
+                        report(JobProgress.Phase.MERGING, "Merging ${p.phase.name.lowercase()}: ${"%,d".format(p.entitiesWritten)} written · ${mb(p.bytesWritten)} MB", p.fraction)
                     }
-                    tmp.renameTo(merged) || error("could not finalize merged PBF")
                     merged
                 }
             } else sourcePbf = pbfs.firstOrNull() ?: layout.mergedPbf
@@ -123,19 +121,19 @@ class OfflinePipeline(
             } == true && (manifest.tilesMaxZoom ?: 0) >= request.tilesMaxZoom
             if (!tilesCurrent) {
                 report(JobProgress.Phase.DOWNLOADING_TILES, "Finding the latest Protomaps build")
-                val build = ProtomapsBuilds.latestUrl { url -> fetchText(url) }
+                val (buildUrl, _) = ProtomapsBuilds.latestUrl { url -> fetchText(url) }
                 report(JobProgress.Phase.DOWNLOADING_TILES, "Map tiles for ${regions.joinToString { it.name }} (z≤${request.tilesMaxZoom})")
-                PmTilesExtractor.extract(build.url, bbox, request.tilesMaxZoom, layout.buildTiles, http) { p ->
-                    report(JobProgress.Phase.DOWNLOADING_TILES, "Tiles: ${mb(p.bytesDone)} / ${mb(p.bytesTotal)} MB · ${p.tilesDone}/${p.tilesTotal}",
-                        if (p.bytesTotal > 0) p.bytesDone.toDouble() / p.bytesTotal else null, p.bytesDone, p.bytesTotal)
-                }
+                PmTilesExtractor.extract(buildUrl, bbox, request.tilesMaxZoom, layout.buildTiles, http, progress = { p ->
+                    report(JobProgress.Phase.DOWNLOADING_TILES, "Tiles ${p.phase.name.lowercase()}: ${mb(p.bytesDone)} / ${mb(p.bytesTotal)} MB · batch ${p.batchesDone}/${p.batchesTotal}",
+                        p.fraction, p.bytesDone, p.bytesTotal)
+                }, concurrency = 4)
                 report(JobProgress.Phase.ACTIVATING, "Activating tiles")
                 layout.activeTiles.delete()
                 layout.buildTiles.renameTo(layout.activeTiles) || error("could not activate tiles")
                 File(layout.buildTiles.path + ".state").delete()
                 manifest = manifest.copy(
                     tilesBbox = listOf(bbox.south, bbox.west, bbox.north, bbox.east), tilesMaxZoom = request.tilesMaxZoom,
-                    tilesBytes = layout.activeTiles.length(), tilesBuiltAtMillis = System.currentTimeMillis(), tilesSource = build.url,
+                    tilesBytes = layout.activeTiles.length(), tilesBuiltAtMillis = System.currentTimeMillis(), tilesSource = buildUrl,
                 )
                 JsonFiles.write(layout.manifest, manifest)
             }
@@ -151,10 +149,11 @@ class OfflinePipeline(
                     if (json == null) { continue } else hosted.writeText(json)
                 }
                 val styleJson = hosted.readText()
-                val plan = OfflineAssets.plan(styleJson)
-                OfflineAssets.download(plan, http, layout.assetsDir) { done, total ->
-                    report(JobProgress.Phase.STYLING, "$theme: assets $done/$total", if (total > 0) done.toDouble() / total else null)
-                }
+                // Basic Latin + punctuation glyph ranges (3.5 MB) cover English-speaking regions; ALL_RANGES is 18 MB.
+                val plan = OfflineAssets.plan(styleJson, OfflineAssets.BASIC_LATIN_PLUS)
+                OfflineAssets.download(plan, http, layout.assetsDir, { p ->
+                    report(JobProgress.Phase.STYLING, "$theme: fonts and sprites ${p.filesDone}/${p.filesTotal}", if (p.filesTotal > 0) p.filesDone.toDouble() / p.filesTotal else null)
+                })
                 layout.styleFile(theme).writeText(OfflineStyle.localize(styleJson, layout.activeTiles.absolutePath, layout.assetsDir))
                 themes += theme
             }
@@ -202,7 +201,8 @@ class OfflinePipeline(
     )
 
     private fun unionBbox(regions: List<CatalogRegion>): BoundingBox {
-        val b = regions.map { it.bbox }
+        val b = regions.mapNotNull { it.bbox }
+        require(b.isNotEmpty()) { "no region geometry for ${regions.map { it.id }}" }
         return BoundingBox(b.minOf { it.south }, b.minOf { it.west }, b.maxOf { it.north }, b.maxOf { it.east })
     }
 
@@ -226,6 +226,6 @@ class OfflinePipeline(
     private fun OfflineManifest.hasSearch() = searchBuiltAtMillis != null
 
     companion object {
-        fun CatalogRegion.toDownloadRegion() = Region(id = id, name = name, url = pbfUrl, approxBytes = approxBytes ?: 0L)
+        fun CatalogRegion.toDownloadRegion() = Region(id = id, name = name, url = pbfUrl, approxBytes = 0L)
     }
 }

@@ -36,3 +36,23 @@
 -keep class dev.hansel.offline.** { *; }
 -keep class dev.hansel.osm.** { *; }
 -keep class dev.hansel.tiles.** { *; }
+
+# GraphHopper references javax.lang.model.SourceVersion (absent on Android); routing-graphhopper ships a shim.
+-keep class javax.lang.model.** { *; }
+
+# Classes GraphHopper's dependencies reference but Android lacks (AWT, javax, etc.); none are reached on the phone.
+-dontwarn java.awt.Color
+-dontwarn java.awt.Font
+-dontwarn java.awt.Rectangle
+-dontwarn java.awt.Shape
+-dontwarn java.awt.font.FontRenderContext
+-dontwarn java.awt.font.GlyphVector
+-dontwarn java.awt.geom.AffineTransform
+-dontwarn java.awt.geom.Ellipse2D$Double
+-dontwarn java.awt.geom.GeneralPath
+-dontwarn java.awt.geom.Line2D$Double
+-dontwarn java.awt.geom.PathIterator
+-dontwarn java.awt.geom.Point2D$Double
+-dontwarn java.awt.geom.Point2D
+-dontwarn java.awt.geom.Rectangle2D$Double
+-dontwarn java.awt.geom.Rectangle2D

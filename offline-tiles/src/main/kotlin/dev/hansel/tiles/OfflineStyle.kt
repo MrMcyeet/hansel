@@ -109,10 +109,20 @@ object OfflineStyle {
         val layers = style["layers"] as? JsonArray ?: return out
         for (layer in layers) {
             val layout = layer.jsonObject["layout"] as? JsonObject ?: continue
-            val tf = layout["text-font"] ?: continue
-            collectFontStacks(tf, out, topLevel = true)
+            walkTextFont(layout, out)
         }
         return out
+    }
+
+    /** `text-font` appears at layout level and as a section override inside `["format", ..., {"text-font": ...}]`. */
+    private fun walkTextFont(v: JsonElement, out: MutableSet<String>) {
+        when (v) {
+            is JsonObject -> for ((k, child) in v) {
+                if (k == "text-font") collectFontStacks(child, out, topLevel = true) else walkTextFont(child, out)
+            }
+            is JsonArray -> v.forEach { walkTextFont(it, out) }
+            else -> Unit
+        }
     }
 
     /**

@@ -36,6 +36,8 @@ class PmTilesWriter(
     private val initialLeafSize: Int = 4096,
     /** Testing hook: maximum compressed root directory size. Defaults to the spec's 16 257 bytes. */
     private val maxRootBytes: Int = PmTiles.MAX_ROOT_BYTES,
+    /** Testing hook: always split into leaves of this many entries, even when the root would fit. */
+    private val forceLeafSize: Int? = null,
 ) : AutoCloseable {
     private val raf = RandomAccessFile(output, "rw")
     private val tileDataStart: Long = PmTiles.ROOT_WINDOW_BYTES.toLong()
@@ -156,9 +158,11 @@ class PmTilesWriter(
      * leaves; otherwise split into leaves of N entries (N doubling until the root of leaf pointers fits).
      */
     private fun buildDirectories(entries: List<PmTiles.Entry>): Pair<ByteArray, List<ByteArray>> {
-        val direct = PmTiles.compress(PmTiles.encodeDirectory(entries), internalCompression)
-        if (direct.size <= maxRootBytes) return direct to emptyList()
-        var leafSize = initialLeafSize.coerceAtLeast(1)
+        if (forceLeafSize == null) {
+            val direct = PmTiles.compress(PmTiles.encodeDirectory(entries), internalCompression)
+            if (direct.size <= maxRootBytes) return direct to emptyList()
+        }
+        var leafSize = (forceLeafSize ?: initialLeafSize).coerceAtLeast(1)
         while (true) {
             val leaves = ArrayList<ByteArray>()
             val rootEntries = ArrayList<PmTiles.Entry>()

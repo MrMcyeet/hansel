@@ -148,8 +148,8 @@ class PbfReader private constructor(
             val hb = Osmformat.HeaderBlock.parseFrom(data)
             val header = PbfHeader(
                 bbox = if (hb.hasBbox()) BoundingBox(
-                    south = hb.bbox.bottom * 1e-9, west = hb.bbox.left * 1e-9,
-                    north = hb.bbox.top * 1e-9, east = hb.bbox.right * 1e-9,
+                    south = hb.bbox.bottom / 1e9, west = hb.bbox.left / 1e9,
+                    north = hb.bbox.top / 1e9, east = hb.bbox.right / 1e9,
                 ) else null,
                 requiredFeatures = hb.requiredFeaturesList.toList(),
                 optionalFeatures = hb.optionalFeaturesList.toList(),
@@ -234,7 +234,8 @@ class PbfReader private constructor(
             }
         }
 
-        private fun toDegrees(raw: Long, granularity: Long, offset: Long): Double = 1e-9 * (offset + granularity * raw)
+        /** Division rather than `* 1e-9`: 1e9 is exact in binary, 1e-9 is not, and the difference shows up as 7.500000000000001. */
+        private fun toDegrees(raw: Long, granularity: Long, offset: Long): Double = (offset + granularity * raw) / 1e9
 
         private fun tags(strings: StringTableView, keys: List<Int>, vals: List<Int>): Map<String, String> {
             if (keys.isEmpty()) return emptyMap()

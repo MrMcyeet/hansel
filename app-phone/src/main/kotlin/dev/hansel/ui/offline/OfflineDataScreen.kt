@@ -197,7 +197,7 @@ private fun RegionRow(r: CatalogRegion, installed: Boolean, checked: Boolean, is
         Spacer(Modifier.width(6.dp))
         Column(Modifier.weight(1f)) {
             Text(r.name + if (isHome) "  · you're here" else "", color = if (isHome) HanselColors.Teal else HanselColors.Text)
-            Text((r.approxBytes?.let { "≈ ${mb(it)} MB extract" } ?: "") + if (installed) " · installed" else "", color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
+            if (installed) Text("installed", color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
         }
     }
 }

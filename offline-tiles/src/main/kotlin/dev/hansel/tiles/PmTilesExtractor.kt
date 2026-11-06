@@ -41,7 +41,8 @@ data class ExtractBatch(val sourceOffset: Long, val length: Long, val scratchOff
 
 /**
  * Everything the extractor needs, computed from the source directories only (no tile bytes fetched yet).
- * Arrays are parallel and sorted by tile id; only tiles present in the source are listed.
+ * Arrays are parallel and sorted by tile id; only tiles present in the source are listed. [tileOffsets] and
+ * [ExtractBatch.sourceOffset] are absolute positions in the source archive (tile data offset already added).
  */
 class ExtractPlan(
     val sourceUrl: String,
@@ -160,7 +161,7 @@ object PmTilesExtractor {
         progress(ExtractProgress(ExtractPhase.RESOLVING, tilesTotal = wanted.size.toLong()))
         for ((i, id) in wanted.withIndex()) {
             val e = reader.findEntry(id)
-            if (e != null) { ids[n] = id; offs[n] = e.offset; lens[n] = e.length; n++ }
+            if (e != null) { ids[n] = id; offs[n] = header.tileDataOffset + e.offset; lens[n] = e.length; n++ }
             if (i and 0xffff == 0xffff) progress(ExtractProgress(ExtractPhase.RESOLVING, tilesDone = i.toLong() + 1, tilesTotal = wanted.size.toLong()))
         }
         check(n > 0) { "no tiles of the requested area exist in the source" }
@@ -213,7 +214,8 @@ object PmTilesExtractor {
         val identity = ExtractState.identityOf(plan)
         val previous = runCatching { stateFile.takeIf { it.exists() }?.let { json.decodeFromString<ExtractState>(it.readText()) } }.getOrNull()
         val resumable = previous != null && previous.sameIdentity(identity) && scratch.exists()
-        val completed = if (resumable) java.util.TreeSet(previous!!.completed) else java.util.TreeSet<Int>()
+        val completed = java.util.TreeSet<Int>()
+        if (resumable) completed += previous.completed
         if (!resumable) {
             scratch.delete(); stateFile.delete()
         }

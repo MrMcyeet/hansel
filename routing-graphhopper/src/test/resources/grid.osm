@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="hansel-test">
+  <!-- 5x5 grid of residential streets ~200 m apart around 30.3,-89.1 (rows south->north, cols west->east).
+       Row 1 Street is toll=yes, Row 3 Street is surface=gravel, Col 4 Avenue is oneway (south->north),
+       Bypass Expressway is a two-way motorway from the SW corner (0,0) via a point south of the grid to the NE corner (4,4). -->
+  <node id="100" lat="30.300000" lon="-89.100000" version="1"/>
+  <node id="101" lat="30.300000" lon="-89.097920" version="1"/>
+  <node id="102" lat="30.300000" lon="-89.095840" version="1"/>
+  <node id="103" lat="30.300000" lon="-89.093760" version="1"/>
+  <node id="104" lat="30.300000" lon="-89.091680" version="1"/>
+  <node id="110" lat="30.301800" lon="-89.100000" version="1"/>
+  <node id="111" lat="30.301800" lon="-89.097920" version="1"/>
+  <node id="112" lat="30.301800" lon="-89.095840" version="1"/>
+  <node id="113" lat="30.301800" lon="-89.093760" version="1"/>
+  <node id="114" lat="30.301800" lon="-89.091680" version="1"/>
+  <node id="120" lat="30.303600" lon="-89.100000" version="1"/>
+  <node id="121" lat="30.303600" lon="-89.097920" version="1"/>
+  <node id="122" lat="30.303600" lon="-89.095840" version="1"/>
+  <node id="123" lat="30.303600" lon="-89.093760" version="1"/>
+  <node id="124" lat="30.303600" lon="-89.091680" version="1"/>
+  <node id="130" lat="30.305400" lon="-89.100000" version="1"/>
+  <node id="131" lat="30.305400" lon="-89.097920" version="1"/>
+  <node id="132" lat="30.305400" lon="-89.095840" version="1"/>
+  <node id="133" lat="30.305400" lon="-89.093760" version="1"/>
+  <node id="134" lat="30.305400" lon="-89.091680" version="1"/>
+  <node id="140" lat="30.307200" lon="-89.100000" version="1"/>
+  <node id="141" lat="30.307200" lon="-89.097920" version="1"/>
+  <node id="142" lat="30.307200" lon="-89.095840" version="1"/>
+  <node id="143" lat="30.307200" lon="-89.093760" version="1"/>
+  <node id="144" lat="30.307200" lon="-89.091680" version="1"/>
+  <node id="900" lat="30.298500" lon="-89.094800" version="1"/>
+  <way id="1000" version="1">
+    <nd ref="100"/>
+    <nd ref="101"/>
+    <nd ref="102"/>
+    <nd ref="103"/>
+    <nd ref="104"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Row 0 Street"/>
+  </way>
+  <way id="1001" version="1">
+    <nd ref="110"/>
+    <nd ref="111"/>
+    <nd ref="112"/>
+    <nd ref="113"/>
+    <nd ref="114"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Row 1 Street"/>
+    <tag k="toll" v="yes"/>
+  </way>
+  <way id="1002" version="1">
+    <nd ref="120"/>
+    <nd ref="121"/>
+    <nd ref="122"/>
+    <nd ref="123"/>
+    <nd ref="124"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Row 2 Street"/>
+  </way>
+  <way id="1003" version="1">
+    <nd ref="130"/>
+    <nd ref="131"/>
+    <nd ref="132"/>
+    <nd ref="133"/>
+    <nd ref="134"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Row 3 Street"/>
+    <tag k="surface" v="gravel"/>
+  </way>
+  <way id="1004" version="1">
+    <nd ref="140"/>
+    <nd ref="141"/>
+    <nd ref="142"/>
+    <nd ref="143"/>
+    <nd ref="144"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Row 4 Street"/>
+  </way>
+  <way id="1005" version="1">
+    <nd ref="100"/>
+    <nd ref="110"/>
+    <nd ref="120"/>
+    <nd ref="130"/>
+    <nd ref="140"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Col 0 Avenue"/>
+  </way>
+  <way id="1006" version="1">
+    <nd ref="101"/>
+    <nd ref="111"/>
+    <nd ref="121"/>
+    <nd ref="131"/>
+    <nd ref="141"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Col 1 Avenue"/>
+  </way>
+  <way id="1007" version="1">
+    <nd ref="102"/>
+    <nd ref="112"/>
+    <nd ref="122"/>
+    <nd ref="132"/>
+    <nd ref="142"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Col 2 Avenue"/>
+  </way>
+  <way id="1008" version="1">
+    <nd ref="103"/>
+    <nd ref="113"/>
+    <nd ref="123"/>
+    <nd ref="133"/>
+    <nd ref="143"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Col 3 Avenue"/>
+  </way>
+  <way id="1009" version="1">
+    <nd ref="104"/>
+    <nd ref="114"/>
+    <nd ref="124"/>
+    <nd ref="134"/>
+    <nd ref="144"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Col 4 Avenue"/>
+    <tag k="oneway" v="yes"/>
+  </way>
+  <way id="1010" version="1">
+    <nd ref="100"/>
+    <nd ref="900"/>
+    <nd ref="144"/>
+    <tag k="highway" v="motorway"/>
+    <tag k="name" v="Bypass Expressway"/>
+    <tag k="oneway" v="no"/>
+  </way>
+</osm>

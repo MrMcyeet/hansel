@@ -86,7 +86,7 @@ object OfflineAssets {
         destDir: File,
         progress: (AssetProgress) -> Unit = {},
         concurrency: Int = 4,
-    ): Int = coroutineScope {
+    ): Int {
         val mutex = Mutex()
         var done = 0
         var skipped = 0
@@ -95,28 +95,33 @@ object OfflineAssets {
         val work = Channel<AssetDownload>(Channel.UNLIMITED)
         for (a in plan) work.send(a)
         work.close()
-        repeat(concurrency.coerceAtLeast(1)) {
-            launch {
-                for (a in work) {
-                    val target = File(destDir, a.relativePath)
-                    val fetched = withContext(Dispatchers.IO) {
-                        if (target.exists() && target.length() > 0) return@withContext -1L
-                        target.parentFile?.mkdirs()
-                        val part = File(target.path + ".part")
-                        val body = fetch(client, a.url)
-                        part.writeBytes(body)
-                        if (!part.renameTo(target)) { target.delete(); if (!part.renameTo(target)) throw IOException("cannot write ${target.path}") }
-                        body.size.toLong()
-                    }
-                    mutex.withLock {
-                        done++
-                        if (fetched < 0) skipped++ else { bytes += fetched; downloaded++ }
-                        progress(AssetProgress(done, plan.size, bytes, skipped, a.relativePath))
+        coroutineScope {
+            repeat(concurrency.coerceAtLeast(1)) {
+                launch {
+                    for (a in work) {
+                        val target = File(destDir, a.relativePath)
+                        val fetched = withContext(Dispatchers.IO) {
+                            if (target.exists() && target.length() > 0) return@withContext -1L
+                            target.parentFile?.mkdirs()
+                            val part = File(target.path + ".part")
+                            val body = fetch(client, a.url)
+                            part.writeBytes(body)
+                            if (!part.renameTo(target)) {
+                                target.delete()
+                                if (!part.renameTo(target)) throw IOException("cannot write ${target.path}")
+                            }
+                            body.size.toLong()
+                        }
+                        mutex.withLock {
+                            done++
+                            if (fetched < 0) skipped++ else { bytes += fetched; downloaded++ }
+                            progress(AssetProgress(done, plan.size, bytes, skipped, a.relativePath))
+                        }
                     }
                 }
             }
         }
-        downloaded
+        return downloaded
     }
 
     private fun fetch(client: OkHttpClient, url: String): ByteArray {
@@ -126,7 +131,7 @@ object OfflineAssets {
                 client.newCall(Request.Builder().url(url).build()).execute().use { resp ->
                     if (resp.code == 429 || resp.code >= 500) throw IOException("HTTP ${resp.code} for $url")
                     if (!resp.isSuccessful) throw NonRetryable("HTTP ${resp.code} for $url")
-                    return resp.body?.bytes() ?: throw IOException("empty body for $url")
+                    return resp.body.bytes()
                 }
             } catch (e: NonRetryable) {
                 throw IOException(e.message)
