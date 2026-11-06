@@ -1,4 +1,7 @@
 import com.android.build.api.dsl.ApplicationExtension
+import com.android.build.api.instrumentation.FramesComputationMode
+import com.android.build.api.instrumentation.InstrumentationScope
+import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
@@ -18,6 +21,14 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
             }
             packaging {
                 resources.excludes += setOf("META-INF/AL2.0", "META-INF/LGPL2.1", "META-INF/*.kotlin_module")
+            }
+        }
+
+        // Patch GraphHopper's storage classes for Android at dex time (see GraphHopperAndroidPatch).
+        extensions.configure<ApplicationAndroidComponentsExtension> {
+            onVariants { variant ->
+                variant.instrumentation.transformClassesWith(GraphHopperAndroidPatch::class.java, InstrumentationScope.ALL) { }
+                variant.instrumentation.setAsmFramesComputationMode(FramesComputationMode.COMPUTE_FRAMES_FOR_INSTRUMENTED_METHODS)
             }
         }
 
