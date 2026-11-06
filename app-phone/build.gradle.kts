@@ -11,7 +11,21 @@ android {
     }
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Personal app: R8-minified so the APK is a sane size, signed with the debug key so `adb install` just works.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
+    // The target phone is arm64 only; MapLibre's native libs for the other three ABIs are ~80 MB of dead weight.
+    // Pass -Phansel.universalApk=true to get the all-ABI build back (emulators on x86_64 need it).
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a")
+            isUniversalApk = providers.gradleProperty("hansel.universalApk").orNull == "true"
         }
     }
 }
