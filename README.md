@@ -6,7 +6,7 @@ side by side, routes you can drag into shape, and an Android Auto screen driven 
 > Hansel marked his own trail to find the way home. The app keeps the breadcrumbs — every trip, as it was actually driven.
 
 **Status:** first implementation of Phases 0–2 of [`DESIGN.md`](DESIGN.md). It compiles to a debug APK and has
-~100 unit tests over the routing/editing/navigation logic, but it has **not yet run on the Galaxy S25+ or a head unit**.
+88 unit tests over the routing/editing/navigation logic, but it has **not yet run on the Galaxy S25+ or a head unit**.
 Routing today is PC-hosted on your LAN (Valhalla + GraphHopper in Docker); that is online routing, not the Phase 3
 offline capability.
 
