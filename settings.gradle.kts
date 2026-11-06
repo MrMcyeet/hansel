@@ -33,7 +33,6 @@ include(":map-ui")
 include(":app-car")
 include(":app-phone")
 
-// Phase 0 spike: on-device GraphHopper graph loading. Opt-in because it's a known-risk dependency.
-if (providers.gradleProperty("hansel.spike.graphhopperOnDevice").orNull == "true") {
-    include(":spikes:graphhopper-ondevice")
-}
+// Self-contained mode (Phase 3 pulled forward): on-device data pipeline and in-process GraphHopper.
+include(":offline")
+include(":routing-graphhopper-local")

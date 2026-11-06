@@ -4,7 +4,12 @@ import kotlinx.serialization.Serializable
 
 /** Which routing backend produced a result. Never use engine-specific edge IDs as a canonical key (see DESIGN §3). */
 @Serializable
-enum class EngineId { VALHALLA, GRAPHHOPPER, FAKE }
+enum class EngineId {
+    VALHALLA, GRAPHHOPPER,
+    /** GraphHopper core running inside the app process on a locally built graph — the self-contained default. */
+    GRAPHHOPPER_LOCAL,
+    FAKE,
+}
 
 /**
  * Waypoint semantics, following Valhalla's vocabulary (DESIGN §5.1, §5.2):
