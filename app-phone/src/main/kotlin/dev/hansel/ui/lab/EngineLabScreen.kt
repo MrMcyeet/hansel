@@ -77,10 +77,10 @@ fun EngineLabScreen(vm: MainViewModel, onBack: () -> Unit) {
         Column(Modifier.fillMaxSize().padding(pad).padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             LabCard("Engines") {
                 for ((id, h) in health) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(id.name.lowercase().replaceFirstChar { it.uppercase() })
-                        Text(if (h.reachable) "OK · ${h.latencyMillis} ms · ${h.detail}" else "unreachable · ${h.detail}",
-                            color = if (h.reachable) HanselColors.Teal else HanselColors.Red, style = MaterialTheme.typography.labelSmall)
+                    Column(Modifier.fillMaxWidth()) {
+                        Text(id.name.lowercase().replaceFirstChar { it.uppercase() } + if (h.reachable) "  ·  OK, ${h.latencyMillis} ms" else "  ·  unreachable",
+                            color = if (h.reachable) HanselColors.Teal else HanselColors.Red)
+                        Text(h.detail, color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
                     }
                 }
                 if (health.isEmpty()) Text("Checking…", color = HanselColors.Muted)

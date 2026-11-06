@@ -69,7 +69,7 @@ class AbShadowLogger(private val store: AbRecordStore, private val modelVersion:
                      private val launch: (suspend () -> Unit) -> Unit) : RoutingObserver {
 
     override fun onResult(result: OrchestratedResult) {
-        val p = result.primaryRaw.primary
+        val p = result.primaryRaw.primary ?: return // a failed request is not an observation about either engine
         val s = result.shadowRaw?.primary
         val rec = AbRecord(
             requestId = result.request.id, createdAtMillis = System.currentTimeMillis(), mode = result.mode,

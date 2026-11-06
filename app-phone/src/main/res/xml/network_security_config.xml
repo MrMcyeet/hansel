@@ -1,12 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The dev server (Valhalla / GraphHopper / Nominatim) is plain HTTP on the owner's LAN. HTTPS everywhere else. -->
+<!--
+  The dev server (Valhalla / GraphHopper / Nominatim) is plain HTTP on the owner's LAN, and Android's config only
+  matches hostnames/literal IPs (no CIDR ranges), so cleartext is allowed globally. Everything else the app talks to
+  (Protomaps) is HTTPS anyway. Tighten this to exact server IPs once they are stable, or front the dev server with TLS.
+-->
 <network-security-config>
-    <base-config cleartextTrafficPermitted="false" />
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="false">localhost</domain>
-        <domain includeSubdomains="false">10.0.2.2</domain>
-        <domain includeSubdomains="true">10.0.0.0</domain>
-        <domain includeSubdomains="true">192.168.0.0</domain>
-        <domain includeSubdomains="true">172.16.0.0</domain>
-    </domain-config>
+    <base-config cleartextTrafficPermitted="true" />
 </network-security-config>
