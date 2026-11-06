@@ -1,1 +1,21 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- ACCESS_BACKGROUND_LOCATION is intentionally NOT declared here; passive recording adds it in a later phase. -->
+
+    <application>
+        <service
+            android:name="dev.hansel.location.NavigationForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <receiver
+            android:name="dev.hansel.location.NavigationForegroundService$StopReceiver"
+            android:exported="false" />
+    </application>
+</manifest>

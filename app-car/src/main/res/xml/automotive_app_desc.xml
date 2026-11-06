@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android Auto descriptor referenced by the com.google.android.gms.car.application meta-data. "template" = the app
+     projects through the Android for Cars App Library templates (DESIGN §8). -->
+<automotiveApp>
+    <uses name="template" />
+</automotiveApp>

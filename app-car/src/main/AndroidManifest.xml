@@ -1,1 +1,42 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android Auto library manifest. Everything here merges into the application manifest of whichever app depends on
+  :app-car (DESIGN §8). The host validates these at bind time:
+
+  - androidx.car.app.NAVIGATION_TEMPLATES: required for NavigationTemplate / MapWithContentTemplate in a NAVIGATION app.
+  - androidx.car.app.MAP_TEMPLATES: the POI/weather alternative for MapWithContentTemplate; harmless to declare too.
+  - androidx.car.app.ACCESS_SURFACE: required to receive the map Surface via SurfaceCallback.
+
+  The app module must still provide, inside its own <application>:
+      <meta-data android:name="com.google.android.gms.car.application" android:resource="@xml/automotive_app_desc"/>
+  (it is also declared below so it merges in automatically; the app may keep its own copy as long as the values match).
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="androidx.car.app.NAVIGATION_TEMPLATES" />
+    <uses-permission android:name="androidx.car.app.MAP_TEMPLATES" />
+    <uses-permission android:name="androidx.car.app.ACCESS_SURFACE" />
+
+    <application>
+
+        <!-- Android Auto app descriptor (res/xml/automotive_app_desc.xml): declares that this app uses templates. -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+
+        <!-- Minimum Car App API level the app supports. Level 1 keeps the oldest hosts working; features gated to
+             higher levels (gesture callbacks, cluster) are checked at runtime via CarContext.getCarAppApiLevel(). -->
+        <meta-data
+            android:name="androidx.car.app.minCarApiLevel"
+            android:value="1" />
+
+        <service
+            android:name="dev.hansel.car.HanselCarAppService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <category android:name="androidx.car.app.category.NAVIGATION" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>
