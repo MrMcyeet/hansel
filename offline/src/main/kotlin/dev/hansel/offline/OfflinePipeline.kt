@@ -101,7 +101,11 @@ class OfflinePipeline(
             if (!graphCurrent) {
                 layout.buildGraph.deleteRecursively()
                 report(JobProgress.Phase.IMPORTING_GRAPH, "Reading roads from ${sourcePbf.name} (${mb(sourcePbf.length())} MB)")
-                val result = GraphImporter.import(sourcePbf, layout.buildGraph) { p ->
+                // RAM_STORE, not MMAP: GraphHopper's MMapDataAccess unmaps buffers through JDK-private reflection that
+                // Android's hidden-API policy blocks ("Unable to unmap the mapped buffer"), and an import remaps
+                // constantly as the graph grows. The build process has a large heap for exactly this. Loading later
+                // uses MMAP read-only, which maps once and never unmaps.
+                val result = GraphImporter.import(sourcePbf, layout.buildGraph, dataAccess = "RAM_STORE") { p ->
                     val phase = if (p.stage == GraphImporter.Stage.PREPARING_CH) JobProgress.Phase.PREPARING_CH else JobProgress.Phase.IMPORTING_GRAPH
                     report(phase, "${p.stage.name.lowercase().replace('_', ' ')} · ${p.detail} · ${p.elapsedMillis / 1000}s")
                 }
