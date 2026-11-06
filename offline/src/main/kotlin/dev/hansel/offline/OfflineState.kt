@@ -38,6 +38,14 @@ data class OfflineManifest(
     val graphBuildConfig: String? = null,
     val searchIndexRows: Long = 0,
     val searchBuiltAtMillis: Long? = null,
+    /** Map tiles: bbox covered by the active PMTiles file (south, west, north, east) and its zoom cap. */
+    val tilesBbox: List<Double>? = null,
+    val tilesMaxZoom: Int? = null,
+    val tilesBytes: Long = 0,
+    val tilesBuiltAtMillis: Long? = null,
+    val tilesSource: String? = null,
+    /** Themes whose localized style JSON exists under OfflineLayout.styleDir. */
+    val styleThemes: List<String> = emptyList(),
 )
 
 /** One running job's progress; the setup screen renders exactly this. */
@@ -52,7 +60,9 @@ data class JobProgress(
     val startedAtMillis: Long,
 ) {
     @Serializable
-    enum class Phase { DOWNLOADING, VERIFYING, MERGING, INDEXING_SEARCH, IMPORTING_GRAPH, PREPARING_CH, ACTIVATING, DONE, FAILED }
+    enum class Phase { QUEUED, DOWNLOADING, VERIFYING, MERGING, INDEXING_SEARCH, IMPORTING_GRAPH, PREPARING_CH, DOWNLOADING_TILES, STYLING, ACTIVATING, DONE, FAILED, CANCELLED }
+
+    val isTerminal: Boolean get() = phase == Phase.DONE || phase == Phase.FAILED || phase == Phase.CANCELLED
 }
 
 /** What the rest of the app looks at: is there usable data, and is anything happening right now. */
@@ -63,7 +73,10 @@ data class OfflineStatus(
 ) {
     val hasGraph: Boolean get() = manifest.graphBuiltAtMillis != null
     val hasSearch: Boolean get() = manifest.searchBuiltAtMillis != null
-    val isBusy: Boolean get() = job != null && job.phase != JobProgress.Phase.DONE && job.phase != JobProgress.Phase.FAILED
+    val isBusy: Boolean get() = job != null && !job.isTerminal
+    val hasTiles: Boolean get() = manifest.tilesBuiltAtMillis != null
+    /** Everything the app needs to work with no network at all. */
+    val isSelfContained: Boolean get() = hasGraph && hasSearch && hasTiles
     /** Regions downloaded but not yet part of the active graph: a rebuild is pending. */
     val staleRegionIds: List<String> get() = manifest.regions.map { it.region.id }.filter { it !in manifest.graphRegionIds }
 }

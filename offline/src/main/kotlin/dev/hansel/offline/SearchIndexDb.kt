@@ -113,6 +113,7 @@ abstract class SearchIndexDb : RoomDatabase() {
         fun build(context: Context): SearchIndexDb =
             Room.databaseBuilder(context.applicationContext, SearchIndexDb::class.java, NAME)
                 .fallbackToDestructiveMigration(dropAllTables = true)
+                .enableMultiInstanceInvalidation() // written by the :build process, read by the UI process
                 .build()
     }
 }

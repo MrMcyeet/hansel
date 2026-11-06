@@ -8,6 +8,7 @@ import dev.hansel.ui.home.MapScreen
 import dev.hansel.ui.lab.EngineLabScreen
 import dev.hansel.ui.lab.PlaceholderLabScreen
 import dev.hansel.ui.offline.OfflineDataScreen
+import dev.hansel.ui.offline.OfflineDataScreen
 import dev.hansel.ui.search.SearchMode
 import dev.hansel.ui.search.SearchScreen
 import dev.hansel.ui.settings.SettingsScreen
@@ -44,7 +45,7 @@ fun HanselNavHost(vm: MainViewModel) {
             val mode = SearchMode.valueOf(entry.arguments?.getString("mode") ?: SearchMode.DESTINATION.name)
             SearchScreen(vm, mode, onDone = { nav.popBackStack() })
         }
-        composable(Routes.SETTINGS) { SettingsScreen(vm, onBack = { nav.popBackStack() }) }
+        composable(Routes.SETTINGS) { SettingsScreen(vm, onBack = { nav.popBackStack() }, onOpenOffline = { nav.navigate(Routes.DOWNLOADS) }) }
         composable(Routes.ENGINE_LAB) { EngineLabScreen(vm, onBack = { nav.popBackStack() }) }
         composable(Routes.TRAFFIC_LAB) {
             PlaceholderLabScreen("Traffic lab", "Phase 4", listOf(

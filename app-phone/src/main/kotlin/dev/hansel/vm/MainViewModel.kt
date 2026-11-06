@@ -26,7 +26,6 @@ import dev.hansel.routing.editor.RouteStretch
 import dev.hansel.storage.HanselSettings
 import dev.hansel.storage.TripRecorder
 import dev.hansel.storage.effectivePrimaryEngine
-import dev.hansel.storage.effectiveShadowEngine
 import dev.hansel.storage.routingOptions
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
@@ -119,7 +118,7 @@ class MainViewModel(private val graph: AppGraph, private val appContext: Context
             val ed = editor ?: return@Rerouter null
             val req = ed.forReroute(current, fix.point, fix.bearing?.toDouble(), progress.distanceAlongMeters)
             val s = settings.value
-            graph.orchestrator().route(req, s.effectivePrimaryEngine, s.comparisonMode, s.effectiveShadowEngine)
+            graph.orchestrator().route(req, s.effectivePrimaryEngine, s.comparisonMode, null)
         }
     }
 
@@ -153,7 +152,7 @@ class MainViewModel(private val graph: AppGraph, private val appContext: Context
             // Engines promise not to throw for routing failures, but a malformed server URL from Settings throws
             // IllegalArgumentException out of OkHttp before any of that; keep it on screen instead of crashing.
             val res = try {
-                graph.orchestrator().route(req, s.effectivePrimaryEngine, s.comparisonMode, s.effectiveShadowEngine)
+                graph.orchestrator().route(req, s.effectivePrimaryEngine, s.comparisonMode, null)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -167,7 +166,8 @@ class MainViewModel(private val graph: AppGraph, private val appContext: Context
     }
 
     private fun describe(e: RoutingError): String = when (e) {
-        is RoutingError.Network -> "Can't reach the routing server (${e.message}). Check Settings → Servers, or turn on Demo mode."
+        is RoutingError.Network -> "Network error: ${e.message}"
+        is RoutingError.Unsupported -> "No road data installed yet. Open Offline data to download your state, or turn on Demo mode."
         is RoutingError.LockViolated -> "Locked road can't be honored: ${e.message}"
         else -> e.message
     }
@@ -283,21 +283,6 @@ class MainViewModel(private val graph: AppGraph, private val appContext: Context
     }
 
     fun consumeToast() { _toasts.value = null }
-
-    /** "Save map for this view": pull the tiles for what's on screen into MapLibre's offline store. */
-    fun saveMapForView(bounds: dev.hansel.model.BoundingBox) {
-        val s = settings.value
-        val style = dev.hansel.map.ProtomapsStyle.url(s.mapTheme, s.protomapsKey)
-        val name = "Area ${java.text.SimpleDateFormat("MMM d h:mm a", java.util.Locale.US).format(java.util.Date())}"
-        viewModelScope.launch {
-            _toasts.value = "Saving map tiles for this view…"
-            var lastPct = -1
-            val res = graph.mapOffline.saveArea(style, name, bounds, appContext.resources.displayMetrics.density) { done, total, _ ->
-                if (total > 0) { val pct = (done * 100 / total).toInt(); if (pct / 10 != lastPct / 10) { lastPct = pct; _toasts.value = "Saving map… $pct%" } }
-            }
-            _toasts.value = res.fold({ "Map saved (${name})" }, { "Map save failed: ${it.message}" })
-        }
-    }
 
     /** Map overlay for the current screen state. */
     fun overlay(): MapOverlay {

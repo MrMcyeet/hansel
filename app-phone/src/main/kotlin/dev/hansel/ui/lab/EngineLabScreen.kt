@@ -2,7 +2,6 @@ package dev.hansel.ui.lab
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,7 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -23,7 +22,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -39,36 +37,34 @@ import dev.hansel.HanselApp
 import dev.hansel.benchmark.EngineScore
 import dev.hansel.benchmark.Scorecard
 import dev.hansel.model.EngineId
-import dev.hansel.storage.effectivePrimaryEngine
-import dev.hansel.routing.ComparisonMode
 import dev.hansel.routing.EngineHealth
 import dev.hansel.ui.theme.HanselColors
 import dev.hansel.vm.MainViewModel
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-/** DESIGN §10 "Engine lab": Valhalla / GraphHopper / side-by-side, discrepancy metrics, scorecard. */
+/**
+ * DESIGN §10 "Engine lab". One on-device engine ships today (GraphHopper on a locally built graph), so this shows its
+ * health and ETA scorecard; the shadow/side-by-side plumbing in the orchestrator stays ready for a second engine.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EngineLabScreen(vm: MainViewModel, onBack: () -> Unit) {
     val graph = (LocalContext.current.applicationContext as HanselApp).graph
-    val settings by vm.settings.collectAsState()
+    val offline by graph.offline.status.collectAsState()
     val ui by vm.ui.collectAsState()
     val scope = rememberCoroutineScope()
-    var health by remember { mutableStateOf<Map<EngineId, EngineHealth>>(emptyMap()) }
+    var health by remember { mutableStateOf<EngineHealth?>(null) }
     var scores by remember { mutableStateOf<List<EngineScore>>(emptyList()) }
     var records by remember { mutableStateOf(0) }
 
     suspend fun refresh() {
-        val engines = graph.engines()
-        val servers = settings.useExternalServers
-        health = engines.filterKeys { it != EngineId.FAKE && (servers || it == EngineId.GRAPHHOPPER_LOCAL) }
-            .mapValues { (_, e) -> runCatching { e.healthCheck() }.getOrElse { EngineHealth(false, it.message ?: "error") } }
+        health = graph.engines()[EngineId.GRAPHHOPPER]?.let { e -> runCatching { e.healthCheck() }.getOrElse { EngineHealth(false, it.message ?: "error") } }
         val all = graph.abStore.all()
         records = all.size
         scores = Scorecard.compute(all)
     }
-    LaunchedEffect(settings.valhallaUrl, settings.graphhopperUrl, settings.useExternalServers) { refresh() }
+    LaunchedEffect(offline.manifest.graphBuiltAtMillis) { refresh() }
 
     Scaffold(
         containerColor = HanselColors.Ink,
@@ -78,50 +74,28 @@ fun EngineLabScreen(vm: MainViewModel, onBack: () -> Unit) {
         },
     ) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            LabCard("Engines") {
-                for ((id, h) in health) {
-                    Column(Modifier.fillMaxWidth()) {
-                        Text(engineLabel(id) + if (h.reachable) "  ·  OK, ${h.latencyMillis} ms" else "  ·  unavailable",
-                            color = if (h.reachable) HanselColors.Teal else HanselColors.Red)
+            LabCard("On-device GraphHopper") {
+                val h = health
+                when {
+                    !offline.hasGraph -> Text("No routing graph installed. Open Offline data to build one.", color = HanselColors.Amber)
+                    h == null -> Text("Loading graph…", color = HanselColors.Muted)
+                    else -> {
+                        Text(if (h.reachable) "Loaded · ${h.latencyMillis} ms" else "Failed to load", color = if (h.reachable) HanselColors.Teal else HanselColors.Red)
                         Text(h.detail, color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
                     }
                 }
-                if (health.isEmpty()) Text("Checking…", color = HanselColors.Muted)
-            }
-            LabCard("Primary engine") {
-                val choices = if (settings.useExternalServers) listOf(EngineId.GRAPHHOPPER_LOCAL, EngineId.VALHALLA, EngineId.GRAPHHOPPER) else listOf(EngineId.GRAPHHOPPER_LOCAL)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for (e in choices) FilterChip(selected = settings.effectivePrimaryEngine == e, onClick = {
-                        scope.launch { graph.settingsStore.update { it.copy(primaryEngine = e, shadowEngine = if (e == EngineId.VALHALLA) EngineId.GRAPHHOPPER else EngineId.VALHALLA) } }
-                    }, label = { Text(engineLabel(e)) })
-                }
-                if (!settings.useExternalServers) Text("Valhalla and server GraphHopper appear here once \"Use servers on my LAN\" is on in Settings. Valhalla on-device needs a native port (later).",
+                Text("Graph: ${offline.manifest.graphRegionIds.joinToString(", ") { it.substringAfter('/') }} · ${offline.manifest.graphBytes / 1_048_576} MB · ${offline.manifest.graphBuildConfig ?: "—"}",
                     color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
-            }
-            LabCard("Comparison mode") {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for (m in ComparisonMode.entries) FilterChip(selected = settings.comparisonMode == m, onClick = {
-                        scope.launch { graph.settingsStore.update { it.copy(comparisonMode = m) } }
-                    }, label = { Text(m.name.lowercase().replace('_', ' ')) })
-                }
-                Text(when (settings.comparisonMode) {
-                    ComparisonMode.SINGLE -> "One engine, no comparison."
-                    ComparisonMode.SHADOW -> "Compute both, navigate the primary. Unchosen predictions are never treated as outcomes."
-                    ComparisonMode.SIDE_BY_SIDE -> "Pool both engines' candidates into the route cards; duplicates dropped by overlap."
-                }, color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
             }
             LabCard("Last request") {
                 val r = ui.result
                 if (r == null) Text("Route something first.", color = HanselColors.Muted) else {
-                    Text("${r.primaryEngine.name.lowercase()} · ${r.primaryRaw.latencyMillis} ms · ${r.routes.size} routes shown, ${r.dropped.size} dropped")
-                    r.discrepancy?.let { d ->
-                        Text("vs ${d.shadowEngine.name.lowercase()}: overlap ${(d.overlap * 100).roundToInt()}%, ETA Δ ${(d.etaDeltaSeconds / 60).roundToInt()} min, distance Δ ${(d.distanceDeltaMeters / 1609.344 * 10).roundToInt() / 10.0} mi, latency ${d.shadowLatencyMillis} ms" + if (d.shadowFailed) " (shadow failed)" else "")
-                    }
+                    Text("${r.primaryEngine.name.lowercase()} · ${if (r.primaryRaw.onDevice) "on-device" else "server"} · ${r.primaryRaw.latencyMillis} ms · ${r.routes.size} routes shown, ${r.dropped.size} dropped")
                     r.dropped.forEach { Text("dropped: ${it.reason}", color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall) }
-                    r.primaryRaw.warnings.forEach { Text("warning: $it", color = HanselColors.Amber, style = MaterialTheme.typography.labelSmall) }
+                    (r.primaryRaw.warnings + r.routes.flatMap { it.warnings }).distinct().forEach { Text("warning: $it", color = HanselColors.Amber, style = MaterialTheme.typography.labelSmall) }
                 }
             }
-            LabCard("Scorecard ($records logged requests)") {
+            LabCard("ETA scorecard ($records logged requests)") {
                 if (scores.isEmpty()) Text("No completed trips yet. Turn on Record trips in Settings and drive a route to completion.", color = HanselColors.Muted)
                 for (s in scores) {
                     Text("${s.engine.name.lowercase()} · n=${s.samples}", style = MaterialTheme.typography.titleMedium)
@@ -130,15 +104,10 @@ fun EngineLabScreen(vm: MainViewModel, onBack: () -> Unit) {
                     Spacer(Modifier.height(6.dp))
                 }
             }
+            Text("A second on-device engine (a native Valhalla build) would light up the shadow and side-by-side modes already in the orchestrator (DESIGN §9).",
+                color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
         }
     }
-}
-
-fun engineLabel(e: EngineId): String = when (e) {
-    EngineId.GRAPHHOPPER_LOCAL -> "GraphHopper (on device)"
-    EngineId.GRAPHHOPPER -> "GraphHopper (server)"
-    EngineId.VALHALLA -> "Valhalla (server)"
-    EngineId.FAKE -> "Demo"
 }
 
 @Composable

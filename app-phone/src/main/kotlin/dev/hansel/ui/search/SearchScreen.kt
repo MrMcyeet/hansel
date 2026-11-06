@@ -71,11 +71,9 @@ fun SearchScreen(vm: MainViewModel, mode: SearchMode, onDone: () -> Unit) {
         queries.debounce(350).collectLatest { q ->
             if (q.length < 3) { results = emptyList(); return@collectLatest }
             loading = true; error = null
-            val geocoder = runCatching { graph.geocoder() }.getOrNull()
-            results = if (geocoder == null) emptyList() else geocoder.search(q, pos?.point, limit = 10)
+            results = graph.search.search(q, pos?.point, limit = 10)
             loading = false
-            if (geocoder == null) error = "Search server URL is invalid (Settings → Servers; include http://)"
-            else if (results.isEmpty()) error = "No results (is the Nominatim server reachable? Settings → Servers)"
+            if (results.isEmpty()) error = if (graph.offline.status.value.hasSearch) "No matches in the installed regions" else "No offline search index yet — open Offline data to download your state"
         }
     }
 

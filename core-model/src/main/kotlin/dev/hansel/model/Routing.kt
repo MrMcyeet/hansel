@@ -5,9 +5,11 @@ import kotlinx.serialization.Serializable
 /** Which routing backend produced a result. Never use engine-specific edge IDs as a canonical key (see DESIGN §3). */
 @Serializable
 enum class EngineId {
-    VALHALLA, GRAPHHOPPER,
-    /** GraphHopper core running inside the app process on a locally built graph — the self-contained default. */
-    GRAPHHOPPER_LOCAL,
+    /** GraphHopper core running inside the app on a graph built on the phone — the self-contained default. */
+    GRAPHHOPPER,
+    /** Reserved for a future native on-device Valhalla build; no implementation ships today. */
+    VALHALLA,
+    /** Deterministic in-memory engine for tests and Demo mode. */
     FAKE,
 }
 

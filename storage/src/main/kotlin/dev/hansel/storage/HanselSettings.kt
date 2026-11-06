@@ -9,18 +9,16 @@ import dev.hansel.routing.ComparisonMode
 
 /** Everything the user can change in Settings plus a few restore-after-process-death blobs. Defaults = dev LAN setup. */
 data class HanselSettings(
-    val valhallaUrl: String = "http://192.168.1.10:8002",
-    val graphhopperUrl: String = "http://192.168.1.10:8989",
-    val geocoderUrl: String = "http://192.168.1.10:8080",
     /** Self-contained by default: GraphHopper running in-process on the locally built graph. */
-    val primaryEngine: EngineId = EngineId.GRAPHHOPPER_LOCAL,
+    val primaryEngine: EngineId = EngineId.GRAPHHOPPER,
     val comparisonMode: ComparisonMode = ComparisonMode.SINGLE,
     val shadowEngine: EngineId = EngineId.VALHALLA,
-    /** Advanced: talk to Valhalla/GraphHopper/Nominatim on a LAN PC. Off by default — the app runs on its own. */
-    val useExternalServers: Boolean = false,
-    /** MapLibre ambient tile cache ceiling, MB. */
-    val mapCacheMb: Int = 512,
+    /** Only used to fetch the hosted style JSON once per theme during the offline build, and as the online map fallback before any region is installed. */
     val protomapsKey: String = "6d0170c0f856240d",
+    /** Zoom cap for extracted tiles; 15 is Protomaps' max and roughly doubles the size of 14. */
+    val tilesMaxZoom: Int = 15,
+    /** The first-launch setup card was dismissed without installing anything. */
+    val setupDismissed: Boolean = false,
     val mapTheme: String = "dark",
     val units: DistanceUnits = DistanceUnits.IMPERIAL,
     val recordTrips: Boolean = false,
@@ -53,22 +51,11 @@ fun HanselSettings.routingOptions(): RoutingOptions = RoutingOptions(
     etaProfile = etaProfile,
 )
 
-private val EngineId.isServer: Boolean get() = this == EngineId.VALHALLA || this == EngineId.GRAPHHOPPER
-
 /** Which engine should actually answer requests, honoring demo mode and the external-servers switch. */
 val HanselSettings.effectivePrimaryEngine: EngineId
-    get() = when {
-        demoMode -> EngineId.FAKE
-        primaryEngine.isServer && !useExternalServers -> EngineId.GRAPHHOPPER_LOCAL
-        else -> primaryEngine
-    }
+    get() = if (demoMode) EngineId.FAKE else EngineId.GRAPHHOPPER
 
 /** Shadow engine, or null when comparison is off, would duplicate the primary, or needs a server that's disabled. */
+/** Only one on-device engine ships today, so there is never a shadow engine; kept for the A/B design (DESIGN §9). */
 val HanselSettings.effectiveShadowEngine: EngineId?
-    get() = when {
-        demoMode -> null
-        comparisonMode == ComparisonMode.SINGLE -> null
-        shadowEngine == effectivePrimaryEngine -> null
-        shadowEngine.isServer && !useExternalServers -> null
-        else -> shadowEngine
-    }
+    get() = null

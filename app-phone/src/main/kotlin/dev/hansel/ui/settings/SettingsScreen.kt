@@ -44,7 +44,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
+fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, onOpenOffline: () -> Unit = {}) {
     val graph = (LocalContext.current.applicationContext as HanselApp).graph
     val s by vm.settings.collectAsState()
     val scope = rememberCoroutineScope()
@@ -56,22 +56,18 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
             colors = TopAppBarDefaults.topAppBarColors(containerColor = HanselColors.Ink))
     }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            LabCard("Routing") {
-                Text("Hansel routes on this phone with its own road data (⋮ → Offline data). Nothing below is needed for that.",
-                    color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
-                ToggleRow("Demo mode (fake engine)", s.demoMode) { upd { c -> c.copy(demoMode = it) } }
-            }
-            LabCard("External engines (advanced)") {
-                ToggleRow("Use servers on my LAN", s.useExternalServers) { upd { c -> c.copy(useExternalServers = it) } }
-                if (s.useExternalServers) {
-                    Text("Valhalla / GraphHopper / Nominatim from dev-server/ in the repo. Enables the two-engine A/B lab. Plain HTTP; LAN only.",
-                        color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
-                    UrlField("Valhalla", s.valhallaUrl) { v -> upd { it.copy(valhallaUrl = v) } }
-                    UrlField("GraphHopper", s.graphhopperUrl) { v -> upd { it.copy(graphhopperUrl = v) } }
-                    UrlField("Nominatim (search)", s.geocoderUrl) { v -> upd { it.copy(geocoderUrl = v) } }
-                }
+            LabCard("Offline data") {
+                val offline by graph.offline.status.collectAsState()
+                Text(when {
+                    offline.isSelfContained -> "Routing, search and map tiles are on this phone: ${offline.manifest.graphRegionIds.joinToString(", ") { it.substringAfter('/') }}."
+                    offline.hasGraph -> "Routing is on this phone; map tiles still come from the internet."
+                    else -> "No regions installed yet."
+                }, color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
+                TextButton(onClick = onOpenOffline) { Text("Manage regions") }
+                ToggleRow("Demo mode (fake engine, no data needed)", s.demoMode) { upd { c -> c.copy(demoMode = it) } }
             }
             LabCard("Map") {
+                Text("The Protomaps key is only used to fetch the map style once per theme during the offline build (and for the online map before any region is installed).", color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
                 UrlField("Protomaps API key", s.protomapsKey) { v -> upd { it.copy(protomapsKey = v) } }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (t in listOf("dark", "black", "grayscale", "light")) FilterChip(selected = s.mapTheme == t, onClick = { upd { it.copy(mapTheme = t) } }, label = { Text(t) })
@@ -106,7 +102,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
                 ToggleRow("Personalized ETA (needs history model)", s.personalizeEta, enabled = false) { }
                 ToggleRow("Personalized routing (needs engine cost hooks)", s.personalizeRouting, enabled = false) { }
             }
-            Text("Map data © OpenStreetMap contributors · tiles by Protomaps · routing by Valhalla / GraphHopper on your own server",
+            Text("Map data © OpenStreetMap contributors (ODbL) · tiles from Protomaps' public build · routing by GraphHopper, built and run on this phone",
                 style = MaterialTheme.typography.labelSmall, color = HanselColors.Muted)
         }
     }

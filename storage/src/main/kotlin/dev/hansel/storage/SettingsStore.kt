@@ -28,9 +28,8 @@ class SettingsStore(context: Context) {
     }
 
     private object Keys {
-        val valhallaUrl = stringPreferencesKey("valhalla_url")
-        val graphhopperUrl = stringPreferencesKey("graphhopper_url")
-        val geocoderUrl = stringPreferencesKey("geocoder_url")
+        val tilesMaxZoom = intPreferencesKey("tiles_max_zoom")
+        val setupDismissed = booleanPreferencesKey("setup_dismissed")
         val primaryEngine = stringPreferencesKey("primary_engine")
         val comparisonMode = stringPreferencesKey("comparison_mode")
         val shadowEngine = stringPreferencesKey("shadow_engine")
@@ -39,8 +38,6 @@ class SettingsStore(context: Context) {
         val units = stringPreferencesKey("units")
         val recordTrips = booleanPreferencesKey("record_trips")
         val demoMode = booleanPreferencesKey("demo_mode")
-        val useExternalServers = booleanPreferencesKey("use_external_servers")
-        val mapCacheMb = intPreferencesKey("map_cache_mb")
         val voiceGuidance = booleanPreferencesKey("voice_guidance")
         val avoidTolls = booleanPreferencesKey("avoid_tolls")
         val avoidFerries = booleanPreferencesKey("avoid_ferries")
@@ -58,9 +55,8 @@ class SettingsStore(context: Context) {
     private fun Preferences.toSettings(): HanselSettings {
         val d = HanselSettings()
         return HanselSettings(
-            valhallaUrl = this[Keys.valhallaUrl] ?: d.valhallaUrl,
-            graphhopperUrl = this[Keys.graphhopperUrl] ?: d.graphhopperUrl,
-            geocoderUrl = this[Keys.geocoderUrl] ?: d.geocoderUrl,
+            tilesMaxZoom = this[Keys.tilesMaxZoom] ?: d.tilesMaxZoom,
+            setupDismissed = this[Keys.setupDismissed] ?: d.setupDismissed,
             primaryEngine = enum(this[Keys.primaryEngine], d.primaryEngine),
             comparisonMode = enum(this[Keys.comparisonMode], d.comparisonMode),
             shadowEngine = enum(this[Keys.shadowEngine], d.shadowEngine),
@@ -69,8 +65,6 @@ class SettingsStore(context: Context) {
             units = enum(this[Keys.units], d.units),
             recordTrips = this[Keys.recordTrips] ?: d.recordTrips,
             demoMode = this[Keys.demoMode] ?: d.demoMode,
-            useExternalServers = this[Keys.useExternalServers] ?: d.useExternalServers,
-            mapCacheMb = this[Keys.mapCacheMb] ?: d.mapCacheMb,
             voiceGuidance = this[Keys.voiceGuidance] ?: d.voiceGuidance,
             avoidTolls = this[Keys.avoidTolls] ?: d.avoidTolls,
             avoidFerries = this[Keys.avoidFerries] ?: d.avoidFerries,
@@ -87,9 +81,8 @@ class SettingsStore(context: Context) {
     }
 
     private fun MutablePreferences.write(s: HanselSettings) {
-        this[Keys.valhallaUrl] = s.valhallaUrl
-        this[Keys.graphhopperUrl] = s.graphhopperUrl
-        this[Keys.geocoderUrl] = s.geocoderUrl
+        this[Keys.tilesMaxZoom] = s.tilesMaxZoom
+        this[Keys.setupDismissed] = s.setupDismissed
         this[Keys.primaryEngine] = s.primaryEngine.name
         this[Keys.comparisonMode] = s.comparisonMode.name
         this[Keys.shadowEngine] = s.shadowEngine.name
@@ -98,8 +91,6 @@ class SettingsStore(context: Context) {
         this[Keys.units] = s.units.name
         this[Keys.recordTrips] = s.recordTrips
         this[Keys.demoMode] = s.demoMode
-        this[Keys.useExternalServers] = s.useExternalServers
-        this[Keys.mapCacheMb] = s.mapCacheMb
         this[Keys.voiceGuidance] = s.voiceGuidance
         this[Keys.avoidTolls] = s.avoidTolls
         this[Keys.avoidFerries] = s.avoidFerries

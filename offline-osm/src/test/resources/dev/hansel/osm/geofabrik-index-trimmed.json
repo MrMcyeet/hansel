@@ -1,0 +1,205 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "bayern",
+    "parent": "germany",
+    "name": "Bayern",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/europe/germany/bayern-latest.osm.pbf",
+     "shp": "https://download.geofabrik.de/europe/germany/bayern-latest-free.shp.zip",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/europe/germany/bayern-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/europe/germany/bayern-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/europe:germany:bayern",
+     "updates": "https://download.geofabrik.de/europe/germany/bayern-updates"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "europe",
+    "name": "Europe",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/europe-latest.osm.pbf",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/europe-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/europe-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/europe",
+     "updates": "https://download.geofabrik.de/europe-updates"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "georgia",
+    "parent": "europe",
+    "iso3166-1:alpha2": [
+     "GE"
+    ],
+    "name": "Georgia",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/europe/georgia-latest.osm.pbf",
+     "shp": "https://download.geofabrik.de/europe/georgia-latest-free.shp.zip",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/europe/georgia-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/europe/georgia-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/europe:georgia",
+     "updates": "https://download.geofabrik.de/europe/georgia-updates"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "germany",
+    "parent": "europe",
+    "iso3166-1:alpha2": [
+     "DE"
+    ],
+    "name": "Germany",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/europe/germany-latest.osm.pbf",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/europe/germany-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/europe/germany-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/europe:germany",
+     "updates": "https://download.geofabrik.de/europe/germany-updates"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "north-america",
+    "name": "North America",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/north-america-latest.osm.pbf",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/north-america-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/north-america-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/north-america",
+     "updates": "https://download.geofabrik.de/north-america-updates"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "us",
+    "parent": "north-america",
+    "iso3166-1:alpha2": [
+     "US"
+    ],
+    "name": "United States of America",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/north-america/us-latest.osm.pbf",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/north-america/us-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/north-america/us-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/north-america:us",
+     "updates": "https://download.geofabrik.de/north-america/us-updates"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "us/district-of-columbia",
+    "parent": "north-america",
+    "iso3166-2": [
+     "US-DC"
+    ],
+    "name": "us/district-of-columbia",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/north-america/us/district-of-columbia-latest.osm.pbf",
+     "shp": "https://download.geofabrik.de/north-america/us/district-of-columbia-latest-free.shp.zip",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/north-america/us/district-of-columbia-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/north-america/us/district-of-columbia-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/north-america:us:district-of-columbia",
+     "updates": "https://download.geofabrik.de/north-america/us/district-of-columbia-updates"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "us/georgia",
+    "parent": "north-america",
+    "iso3166-2": [
+     "US-GA"
+    ],
+    "name": "Georgia",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/north-america/us/georgia-latest.osm.pbf",
+     "shp": "https://download.geofabrik.de/north-america/us/georgia-latest-free.shp.zip",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/north-america/us/georgia-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/north-america/us/georgia-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/north-america:us:georgia",
+     "updates": "https://download.geofabrik.de/north-america/us/georgia-updates"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "us/mississippi",
+    "parent": "north-america",
+    "iso3166-2": [
+     "US-MS"
+    ],
+    "name": "us/mississippi",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/north-america/us/mississippi-latest.osm.pbf",
+     "shp": "https://download.geofabrik.de/north-america/us/mississippi-latest-free.shp.zip",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/north-america/us/mississippi-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/north-america/us/mississippi-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/north-america:us:mississippi",
+     "updates": "https://download.geofabrik.de/north-america/us/mississippi-updates"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "us/puerto-rico",
+    "parent": "north-america",
+    "iso3166-1:alpha2": [
+     "PR"
+    ],
+    "iso3166-2": [
+     "US-PR"
+    ],
+    "name": "us/puerto-rico",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/north-america/us/puerto-rico-latest.osm.pbf",
+     "shp": "https://download.geofabrik.de/north-america/us/puerto-rico-latest-free.shp.zip",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/north-america/us/puerto-rico-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/north-america/us/puerto-rico-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/north-america:us:puerto-rico",
+     "updates": "https://download.geofabrik.de/north-america/us/puerto-rico-updates"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "us/us-virgin-islands",
+    "parent": "north-america",
+    "iso3166-1:alpha2": [
+     "VI"
+    ],
+    "iso3166-2": [
+     "US-VI"
+    ],
+    "name": "us/us-virgin-islands",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/north-america/us/us-virgin-islands-latest.osm.pbf",
+     "shp": "https://download.geofabrik.de/north-america/us/us-virgin-islands-latest-free.shp.zip",
+     "pbf-internal": "https://osm-internal.download.geofabrik.de/north-america/us/us-virgin-islands-latest-internal.osm.pbf",
+     "history": "https://osm-internal.download.geofabrik.de/north-america/us/us-virgin-islands-internal.osh.pbf",
+     "taginfo": "https://taginfo.geofabrik.de/north-america:us:us-virgin-islands",
+     "updates": "https://download.geofabrik.de/north-america/us/us-virgin-islands-updates"
+    }
+   }
+  }
+ ]
+}

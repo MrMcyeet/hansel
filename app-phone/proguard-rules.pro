@@ -18,3 +18,21 @@
 # GraphHopper spike isn't in the app; OkHttp/okio ship their own rules.
 -dontwarn org.slf4j.**
 -dontwarn javax.annotation.**
+
+# GraphHopper core on-device: Jackson reflection for config/custom models, HPPC/JTS internals, protobuf PBF classes.
+-keep class com.graphhopper.** { *; }
+-dontwarn com.graphhopper.**
+-keep class com.fasterxml.jackson.** { *; }
+-dontwarn com.fasterxml.jackson.**
+-keep class org.locationtech.jts.** { *; }
+-keep class com.carrotsearch.hppc.** { *; }
+-keep class org.openstreetmap.osmosis.** { *; }
+-keep class com.google.protobuf.** { *; }
+-dontwarn org.codehaus.janino.**
+-dontwarn org.codehaus.commons.**
+-dontwarn javax.xml.stream.**
+-dontwarn java.beans.**
+-dontwarn org.w3c.dom.bootstrap.**
+-keep class dev.hansel.offline.** { *; }
+-keep class dev.hansel.osm.** { *; }
+-keep class dev.hansel.tiles.** { *; }

@@ -9,11 +9,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -22,6 +22,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -37,10 +38,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import dev.hansel.HanselApp
 import dev.hansel.offline.JobProgress
-import dev.hansel.offline.OfflineStatus
+import dev.hansel.offline.OfflineManager
 import dev.hansel.ui.lab.LabCard
 import dev.hansel.ui.theme.HanselColors
 import dev.hansel.vm.MainViewModel
@@ -48,141 +51,157 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
-fun bytesText(b: Long): String = when {
-    b >= 1L shl 30 -> "%.1f GB".format(b / (1024.0 * 1024 * 1024))
-    b >= 1L shl 20 -> "${b / (1024 * 1024)} MB"
-    else -> "${b / 1024} KB"
-}
+import dev.hansel.osm.Region as CatalogRegion
 
 /**
- * DESIGN §10 "Downloads", reshaped for self-contained operation: pick states → the phone downloads the OSM extracts,
- * builds the routing graph and the search index itself. Map tiles are a separate section (ambient cache + saved areas).
+ * DESIGN §10 "Downloads" / §4.2: pick regions (your state is pre-selected), see sizes, build, watch progress, manage
+ * what's installed. Everything is built on the phone; nothing is served from anywhere but Geofabrik/Protomaps.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OfflineDataScreen(vm: MainViewModel, onBack: () -> Unit) {
-    val graph = (androidx.compose.ui.platform.LocalContext.current.applicationContext as HanselApp).graph
-    val ctl = graph.offline
-    val status by ctl.status.collectAsState()
+    val graph = (LocalContext.current.applicationContext as HanselApp).graph
+    val offline = graph.offline
+    val status by offline.status.collectAsState()
     val settings by vm.settings.collectAsState()
-    val areas by graph.mapOffline.areas.collectAsState()
+    val pos by vm.position.collectAsState()
     val scope = rememberCoroutineScope()
-    val installed = remember(status) { status.manifest.regions.map { it.region.id }.toSet() }
-    var selected by remember(installed) { mutableStateOf(installed) }
-    val estimate = remember(selected) { ctl.estimate(selected.toList()) }
-    LaunchedEffect(Unit) { graph.mapOffline.refresh() }
 
     Scaffold(containerColor = HanselColors.Ink, topBar = {
         TopAppBar(title = { Text("Offline data") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = HanselColors.Ink))
     }) { pad ->
-        LazyColumn(Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { StatusCard(status, onCancel = { ctl.cancel() }) }
+        Column(Modifier.fillMaxSize().padding(pad).padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            status.job?.let { job -> JobCard(job, onCancel = { offline.cancel() }, onDismiss = { offline.dismissJob() }) }
 
-            item {
-                LabCard("Road data · states") {
-                    Text("Pick the states you drive in. The phone downloads the map extracts and builds its own routing graph and address index — nothing runs on a PC. Plug in and stay on Wi-Fi; three states take roughly half an hour to an hour.",
-                        color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
-                    Spacer(Modifier.height(6.dp))
-                    Text("Download ${bytesText(estimate.downloadBytes)} · about ${bytesText(estimate.diskBytes)} on disk · ${bytesText(estimate.freeBytes)} free",
-                        color = if (estimate.fits) HanselColors.Text else HanselColors.Red, style = MaterialTheme.typography.bodyMedium)
-                    val changed = selected != installed || status.staleRegionIds.isNotEmpty()
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Button(onClick = { ctl.install(selected.toList()) }, enabled = selected.isNotEmpty() && !status.isBusy && estimate.fits && (changed || !status.hasGraph)) {
-                            Text(if (!status.hasGraph) "Download & build" else if (changed) "Update" else "Up to date")
+            LabCard("Installed") {
+                val m = status.manifest
+                if (m.regions.isEmpty()) Text("Nothing yet.", color = HanselColors.Muted)
+                m.regions.forEach { r ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(r.region.name)
+                            Text("${mb(r.bytes)} MB extract · ${date(r.downloadedAtMillis)}" + if (r.region.id !in m.graphRegionIds) " · not in the routing graph yet" else "",
+                                color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
                         }
-                        Spacer(Modifier.width(8.dp))
-                        if (status.hasGraph) TextButton(onClick = { scope.launch { ctl.deleteAll() } }, enabled = !status.isBusy) { Text("Delete all", color = HanselColors.Red) }
+                        TextButton(onClick = { scope.launch { offline.remove(r.region.id) } }, enabled = !status.isBusy) { Text("Remove", color = HanselColors.Red) }
                     }
                 }
-            }
-
-            val gulf = ctl.regions.filter { it.id in setOf("mississippi", "louisiana", "alabama") }
-            val rest = ctl.regions.filter { it !in gulf }.sortedBy { it.name }
-            items(gulf + rest, key = { it.id }) { r ->
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = r.id in selected, enabled = !status.isBusy, onCheckedChange = { on -> selected = if (on) selected + r.id else selected - r.id })
-                    Column(Modifier.weight(1f)) {
-                        Text(r.name, color = HanselColors.Text)
-                        val inst = status.manifest.regions.firstOrNull { it.region.id == r.id }
-                        Text(if (inst != null) "installed · ${bytesText(inst.bytes)}" + (if (r.id in status.staleRegionIds) " · not in graph yet" else "") else "~${bytesText(r.approxBytes)}",
-                            color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
-                    }
-                    if (r.id in installed) IconButton(onClick = { scope.launch { ctl.removeRegion(r.id) } }, enabled = !status.isBusy) {
-                        Icon(Icons.Default.Delete, "Remove", tint = HanselColors.Red)
-                    }
-                }
-            }
-
-            item {
-                LabCard("Map tiles") {
-                    Text("Tiles come from Protomaps online. Everything you look at is kept in a cache; use ⋮ → \"Save map for this view\" on the map to pull an area down ahead of time.",
-                        color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
-                    Text("Cache size", style = MaterialTheme.typography.labelSmall)
+                if (m.regions.isNotEmpty()) {
+                    Text(buildString {
+                        append(if (status.hasGraph) "Routing graph ✓ ${mb(m.graphBytes)} MB" else "Routing graph ✗")
+                        append(" · ")
+                        append(if (status.hasSearch) "Search ✓ ${"%,d".format(m.searchIndexRows)} places" else "Search ✗")
+                        append(" · ")
+                        append(if (status.hasTiles) "Map tiles ✓ ${mb(m.tilesBytes)} MB (z≤${m.tilesMaxZoom})" else "Map tiles ✗")
+                    }, color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
+                    Text("${mb(offline.bytesUsed())} MB on device · ${mb(offline.layout.freeBytes())} MB free", color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        for (mb in listOf(256, 512, 1024, 2048)) FilterChip(selected = settings.mapCacheMb == mb,
-                            onClick = { scope.launch { graph.settingsStore.update { it.copy(mapCacheMb = mb) }; graph.mapOffline.setAmbientCacheBytes(mb.toLong() shl 20) } },
-                            label = { Text(if (mb >= 1024) "${mb / 1024} GB" else "$mb MB") })
-                    }
-                    TextButton(onClick = { scope.launch { graph.mapOffline.clearAmbientCache() } }) { Text("Clear cached tiles") }
-                    if (areas.isEmpty()) Text("No saved areas.", color = HanselColors.Muted)
-                    for (a in areas) {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text(a.name, color = HanselColors.Text)
-                                Text((if (a.complete) "saved" else if (a.downloading) "downloading ${a.completedTiles}/${a.requiredTiles}" else "partial ${a.completedTiles}/${a.requiredTiles}") + " · ${bytesText(a.bytes)} · z${a.minZoom.toInt()}–${a.maxZoom.toInt()}",
-                                    color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
-                            }
-                            IconButton(onClick = { scope.launch { graph.mapOffline.delete(a.id) } }) { Icon(Icons.Default.Delete, "Delete area", tint = HanselColors.Red) }
-                        }
+                        TextButton(onClick = { offline.rebuild(settings.protomapsKey, settings.tilesMaxZoom) }, enabled = !status.isBusy) { Text(if (status.staleRegionIds.isNotEmpty() || !status.isSelfContained) "Build now" else "Refresh data") }
+                        TextButton(onClick = { scope.launch { offline.wipe() } }, enabled = !status.isBusy) { Text("Delete everything", color = HanselColors.Red) }
                     }
                 }
             }
-            item {
-                Text("Map data © OpenStreetMap contributors (ODbL), extracts by Geofabrik. Routing graph built on this phone with GraphHopper.",
-                    color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
-                Spacer(Modifier.height(24.dp))
+
+            AddRegionsCard(offline, pos?.point, installed = status.manifest.regions.map { it.region.id }, busy = status.isBusy,
+                tilesMaxZoom = settings.tilesMaxZoom,
+                onInstall = { ids -> offline.install(ids, settings.protomapsKey, settings.tilesMaxZoom) })
+
+            LabCard("Map detail") {
+                Text("Tile zoom cap. 15 is Protomaps' maximum (house-level detail) and roughly doubles the download of 14.", color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (z in listOf(13, 14, 15)) FilterChip(selected = settings.tilesMaxZoom == z, onClick = { scope.launch { graph.settingsStore.update { it.copy(tilesMaxZoom = z) } } }, label = { Text("z$z") })
+                }
             }
+            Text("Road data © OpenStreetMap contributors (ODbL) via Geofabrik · tiles from Protomaps' public daily build · builds run on this phone only.",
+                style = MaterialTheme.typography.labelSmall, color = HanselColors.Muted)
         }
     }
 }
 
 @Composable
-private fun StatusCard(status: OfflineStatus, onCancel: () -> Unit) {
-    LabCard("Status") {
-        val job = status.job
-        when {
-            job != null && status.isBusy -> {
-                Text(phaseLabel(job.phase), style = MaterialTheme.typography.titleMedium, color = HanselColors.Teal)
-                Text(job.detail, color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
-                Spacer(Modifier.height(6.dp))
-                if (job.fraction != null) LinearProgressIndicator(progress = { job.fraction.toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth(), color = HanselColors.Teal)
-                else LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = HanselColors.Teal)
-                if (job.bytesTotal > 0) Text("${bytesText(job.bytesDone)} / ${bytesText(job.bytesTotal)}", color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
-                TextButton(onClick = onCancel) { Text("Cancel", color = HanselColors.Red) }
-            }
-            status.hasGraph -> {
-                val m = status.manifest
-                Text("Ready · ${m.graphRegionIds.joinToString(", ") { it.replaceFirstChar(Char::uppercase) }}", style = MaterialTheme.typography.titleMedium, color = HanselColors.Teal)
-                Text("Graph ${bytesText(m.graphBytes)} built ${m.graphBuiltAtMillis?.let { SimpleDateFormat("MMM d, h:mm a", Locale.US).format(Date(it)) }} · ${m.searchIndexRows} places indexed",
-                    color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
-                if (status.staleRegionIds.isNotEmpty()) Text("Downloaded but not built yet: ${status.staleRegionIds.joinToString()} — tap Update.", color = HanselColors.Amber, style = MaterialTheme.typography.labelSmall)
-            }
-            else -> Text("No road data on this phone yet. Routing and search need it; the map works without it.", color = HanselColors.Amber)
+fun JobCard(job: JobProgress, onCancel: () -> Unit, onDismiss: () -> Unit) {
+    LabCard(when (job.phase) {
+        JobProgress.Phase.DONE -> "Build finished"
+        JobProgress.Phase.FAILED -> "Build failed"
+        JobProgress.Phase.CANCELLED -> "Build cancelled"
+        else -> "Building · ${job.phase.name.lowercase().replace('_', ' ')}"
+    }) {
+        Text(job.detail, color = if (job.phase == JobProgress.Phase.FAILED) HanselColors.Red else HanselColors.Text)
+        if (!job.isTerminal) {
+            if (job.fraction != null) LinearProgressIndicator(progress = { job.fraction!!.toFloat() }, modifier = Modifier.fillMaxWidth(), color = HanselColors.Teal)
+            else LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = HanselColors.Teal)
+            Text("${(System.currentTimeMillis() - job.startedAtMillis) / 60_000} min elapsed · keep the phone plugged in; the build continues in the background",
+                color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
+            TextButton(onClick = onCancel) { Text("Cancel", color = HanselColors.Red) }
+        } else {
+            TextButton(onClick = onDismiss) { Text("Dismiss") }
         }
-        status.lastError?.let { Text("Last error: $it", color = HanselColors.Red, style = MaterialTheme.typography.labelSmall) }
     }
 }
 
-private fun phaseLabel(p: JobProgress.Phase) = when (p) {
-    JobProgress.Phase.DOWNLOADING -> "Downloading map extracts"
-    JobProgress.Phase.VERIFYING -> "Verifying"
-    JobProgress.Phase.MERGING -> "Merging regions"
-    JobProgress.Phase.INDEXING_SEARCH -> "Building address index"
-    JobProgress.Phase.IMPORTING_GRAPH -> "Building routing graph"
-    JobProgress.Phase.PREPARING_CH -> "Speeding up routing (contraction)"
-    JobProgress.Phase.ACTIVATING -> "Activating"
-    JobProgress.Phase.DONE -> "Done"
-    JobProgress.Phase.FAILED -> "Failed"
+@Composable
+fun AddRegionsCard(offline: OfflineManager, here: dev.hansel.model.LatLng?, installed: List<String>, busy: Boolean, tilesMaxZoom: Int, onInstall: (List<String>) -> Unit, title: String = "Add regions") {
+    val suggested = remember(here) { offline.suggestedRegions(here) }
+    val all = remember { offline.catalog.usStates().sortedBy { it.name } }
+    var selected by remember(suggested) { mutableStateOf(suggested.firstOrNull()?.let { setOf(it.id) } ?: emptySet()) }
+    var query by remember { mutableStateOf("") }
+    var estimate by remember { mutableStateOf<OfflineManager.Estimate?>(null) }
+    var estimating by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(selected, tilesMaxZoom) {
+        estimate = null
+        if (selected.isEmpty()) return@LaunchedEffect
+        estimating = true
+        estimate = runCatching { offline.estimate(selected.toList(), tilesMaxZoom) }.getOrNull()
+        estimating = false
+    }
+
+    LabCard(title) {
+        if (suggested.isNotEmpty()) {
+            Text("Around you", style = MaterialTheme.typography.labelSmall)
+            suggested.forEach { r -> RegionRow(r, r.id in installed, r.id in selected, r == suggested.first()) { selected = selected.toggle(r.id) } }
+        } else if (here == null) {
+            Text("Waiting for a GPS fix to suggest your state…", color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
+        }
+        OutlinedTextField(value = query, onValueChange = { query = it }, singleLine = true, label = { Text("Other states") },
+            modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done))
+        if (query.length >= 2) {
+            all.filter { it.name.contains(query, ignoreCase = true) && it !in suggested }.take(8).forEach { r ->
+                RegionRow(r, r.id in installed, r.id in selected, false) { selected = selected.toggle(r.id) }
+            }
+        }
+        val chosen = selected.filter { it !in installed }
+        Spacer(Modifier.height(4.dp))
+        when {
+            estimating -> Text("Estimating size…", color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
+            estimate != null -> {
+                val e = estimate!!
+                val total = e.downloadBytes + (e.tilesBytes ?: 0L)
+                Text("≈ ${mb(e.downloadBytes)} MB road data + ${e.tilesBytes?.let { "${mb(it)} MB" } ?: "?"} map tiles to download · ≈ ${mb(e.graphBytesApprox)} MB graph built on the phone · roughly ${e.minutesApprox} min on Wi-Fi",
+                    color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
+                if (e.freeBytes < total * 2 + e.graphBytesApprox) Text("Not enough free space (${mb(e.freeBytes)} MB).", color = HanselColors.Red, style = MaterialTheme.typography.labelSmall)
+            }
+        }
+        Button(onClick = { onInstall(chosen) }, enabled = chosen.isNotEmpty() && !busy, modifier = Modifier.fillMaxWidth()) {
+            Text(if (installed.isEmpty()) "Download and build" else "Add ${chosen.size} region${if (chosen.size == 1) "" else "s"} and rebuild")
+        }
+    }
 }
+
+@Composable
+private fun RegionRow(r: CatalogRegion, installed: Boolean, checked: Boolean, isHome: Boolean, onToggle: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(checked = checked || installed, onCheckedChange = { if (!installed) onToggle() }, enabled = !installed)
+        Spacer(Modifier.width(6.dp))
+        Column(Modifier.weight(1f)) {
+            Text(r.name + if (isHome) "  · you're here" else "", color = if (isHome) HanselColors.Teal else HanselColors.Text)
+            Text((r.approxBytes?.let { "≈ ${mb(it)} MB extract" } ?: "") + if (installed) " · installed" else "", color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+
+private fun Set<String>.toggle(id: String) = if (id in this) this - id else this + id
+internal fun mb(bytes: Long) = bytes / 1_048_576
+private fun date(ms: Long) = SimpleDateFormat("MMM d", Locale.US).format(Date(ms))

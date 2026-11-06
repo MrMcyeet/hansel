@@ -2,7 +2,6 @@ package dev.hansel.map
 
 import android.graphics.Color
 import com.google.gson.JsonObject
-import dev.hansel.model.BoundingBox
 import dev.hansel.model.GeoMath
 import dev.hansel.model.LatLng
 import dev.hansel.model.WaypointType
@@ -144,18 +143,12 @@ class MapController(val map: MapLibreMap) {
         st.getSourceAs<GeoJsonSource>(SRC_DRAG)?.setGeoJson(FeatureCollection.fromFeatures(feats))
     }
 
-    /** What the user is currently looking at, for "save map for this area". */
-    fun visibleBounds(): BoundingBox {
-        val b = map.projection.getVisibleRegion(true).latLngBounds
-        return BoundingBox(b.latitudeSouth, b.longitudeWest, b.latitudeNorth, b.longitudeEast)
-    }
-
     // ---- Camera ------------------------------------------------------------------------------------------------
 
     fun fitRoutes(overlay: MapOverlay, paddingPx: Int, animate: Boolean = true) {
         val pts = overlay.routes.flatMap { it.geometry } + overlay.waypoints.map { it.point } + listOfNotNull(overlay.position?.point)
         if (pts.size < 2) { pts.firstOrNull()?.let { centerOn(it, 14.0, animate) }; return }
-        val b = BoundingBox.of(pts)
+        val b = GeoMath.run { dev.hansel.model.BoundingBox.of(pts) }
         val bounds = LatLngBounds.from(b.north, b.east, b.south, b.west)
         val update = CameraUpdateFactory.newLatLngBounds(bounds, paddingPx)
         if (animate) map.easeCamera(update, 600) else map.moveCamera(update)

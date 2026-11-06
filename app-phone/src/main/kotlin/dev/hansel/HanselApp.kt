@@ -10,13 +10,12 @@ import dev.hansel.navigation.NavigationHostRegistry
 import dev.hansel.navigation.NavigationSession
 import dev.hansel.navigation.RouteProgress
 import dev.hansel.navigation.Rerouter
+import dev.hansel.offline.OfflineManager
+import dev.hansel.offline.OfflineSearch
 import dev.hansel.routing.RoutingEngine
 import dev.hansel.routing.RoutingOrchestrator
 import dev.hansel.routing.fake.FakeRoutingEngine
-import dev.hansel.routing.graphhopper.GraphHopperEngine
-import dev.hansel.routing.valhalla.ValhallaEngine
-import dev.hansel.search.Geocoder
-import dev.hansel.search.NominatimGeocoder
+import dev.hansel.routing.graphhopper.LocalGraphHopperEngine
 import dev.hansel.storage.HanselDatabase
 import dev.hansel.storage.HanselSettings
 import dev.hansel.storage.RecentPlacesRepository
@@ -34,14 +33,15 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
+import java.io.File
 import java.util.concurrent.TimeUnit
 
 /**
- * Hand-rolled dependency graph (DESIGN §3): one navigation session, one orchestrator, one settings store.
- * Everything below is process-wide; the Android Auto service and the foreground service reach it through
- * [NavigationHostRegistry].
+ * Hand-rolled dependency graph (DESIGN §3): one navigation session, one orchestrator, one settings store, one
+ * offline data manager. Everything here is process-wide; the Android Auto service and the foreground service reach
+ * it through [NavigationHostRegistry]. Self-contained by design: routing, search and map tiles come from data built
+ * on the phone by [OfflineManager]; the only network use is downloading that data (and the hosted map before it exists).
  */
 class HanselApp : Application() {
     lateinit var graph: AppGraph
@@ -62,9 +62,8 @@ class HanselApp : Application() {
 class AppGraph(private val app: Application) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val settingsStore = SettingsStore(app)
-    /** Hot copy of settings so synchronous code paths (engine selection, units) never block. */
-    val settings: StateFlow<HanselSettings> = settingsStore.settings.stateIn(scope, SharingStarted.Eagerly, runBlocking { firstSettings() })
-    private suspend fun firstSettings(): HanselSettings = HanselSettings()
+    /** Hot copy of settings so synchronous code paths never block; starts with defaults until DataStore answers. */
+    val settings: StateFlow<HanselSettings> = settingsStore.settings.stateIn(scope, SharingStarted.Eagerly, HanselSettings())
 
     val db: HanselDatabase = HanselDatabase.build(app)
     val savedRoutes = SavedRoutesRepository(db)
@@ -74,26 +73,33 @@ class AppGraph(private val app: Application) {
     val abLogger = AbShadowLogger(abStore, modelVersion = { "baseline" }, launch = { block -> scope.launch { block() } })
 
     val http: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(6, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build()
+        .connectTimeout(15, TimeUnit.SECONDS).readTimeout(120, TimeUnit.SECONDS).build()
 
+    val offline = OfflineManager(app, http, scope)
+    val search = OfflineSearch(app)
     val locationSource = FusedLocationSource(app, scope)
     val speaker = Speaker(app)
-    val mapOffline = dev.hansel.map.MapOfflineStore(app)
 
-    /** Engines are rebuilt when the server URLs change; the cache is keyed by URL so settings edits take effect immediately. */
-    private val engineCache = HashMap<String, RoutingEngine>()
+    /** The on-device engine is rebuilt whenever the active graph changes (offline generation bump). */
+    @Volatile private var localEngine: LocalGraphHopperEngine? = null
+    @Volatile private var localEngineDir: File? = null
+    private val fake = FakeRoutingEngine(latencyMillis = 150)
+
     @Synchronized
     fun engines(): Map<EngineId, RoutingEngine> {
-        val s = settings.value
-        val v = engineCache.getOrPut("valhalla:${s.valhallaUrl}") { ValhallaEngine(s.valhallaUrl.trimEnd('/'), http) }
-        val g = engineCache.getOrPut("graphhopper:${s.graphhopperUrl}") { GraphHopperEngine(s.graphhopperUrl.trimEnd('/'), http) }
-        val f = engineCache.getOrPut("fake") { FakeRoutingEngine(latencyMillis = 150) }
-        return mapOf(EngineId.VALHALLA to v, EngineId.GRAPHHOPPER to g, EngineId.FAKE to f)
+        val dir = offline.activeGraphDir()
+        val engine = when {
+            dir == null -> { localEngine = null; localEngineDir = null; null }
+            dir != localEngineDir || localEngine == null -> LocalGraphHopperEngine(dir).also { localEngine = it; localEngineDir = dir }
+            else -> localEngine
+        }
+        return buildMap {
+            engine?.let { put(EngineId.GRAPHHOPPER, it) }
+            put(EngineId.FAKE, fake)
+        }
     }
 
     fun orchestrator(): RoutingOrchestrator = RoutingOrchestrator(engines(), observers = listOf(abLogger))
-
-    fun geocoder(): Geocoder = NominatimGeocoder(settings.value.geocoderUrl.trimEnd('/'), http)
 
     /** Set by the view model once an editor exists; the session calls it when the driver leaves the route. */
     @Volatile var rerouter: Rerouter = Rerouter { _, _, _: RouteProgress -> null }
@@ -104,16 +110,13 @@ class AppGraph(private val app: Application) {
         NavigationHostRegistry.session = session
         NavigationHostRegistry.locationSource = locationSource
         scope.launch { settings.collect { NavigationHostRegistry.units = it.units } }
-        scope.launch { mapOffline.setAmbientCacheBytes(settings.value.mapCacheMb.toLong() shl 20) }
-        // The one and only fix pump into the session. It lives here, not in the view model (dies with the activity)
-        // or the foreground service (may never start: Android 14+ FGS-location start restrictions, missing
-        // permission, guidance started from the car screen), so every fix reaches the session exactly once for as
-        // long as the process lives. GPS is only held while a route is actually being navigated; the UI and the
-        // recorder keep their own subscriptions.
+        // Single fix pump: exactly one onFix per fix while navigating, whoever started guidance (phone, car, restore).
         scope.launch(Dispatchers.Main) {
             session.state.map { it is NavState.Navigating }.distinctUntilChanged().collectLatest { navigating ->
                 if (navigating) locationSource.fixes.collect { session.onFix(it) }
             }
         }
+        // Drop the cached engine when a new graph is activated so the next request loads it.
+        scope.launch { offline.generation.collect { synchronized(this@AppGraph) { localEngine = null; localEngineDir = null } } }
     }
 }

@@ -43,18 +43,9 @@ class HanselSettingsTest {
         assertNull(s.effectiveShadowEngine)
     }
 
-    @Test
-    fun `self-contained by default - local engine, no shadow, servers only when enabled`() {
-        assertEquals(EngineId.GRAPHHOPPER_LOCAL, HanselSettings().effectivePrimaryEngine)
-        assertNull(HanselSettings().effectiveShadowEngine)
-        // A server engine chosen while servers are off falls back to the local engine.
-        assertEquals(EngineId.GRAPHHOPPER_LOCAL, HanselSettings(primaryEngine = EngineId.VALHALLA).effectivePrimaryEngine)
+    @Test fun engineSelectionIsOnDeviceUnlessDemo() {
+        assertEquals(EngineId.GRAPHHOPPER, HanselSettings().effectivePrimaryEngine)
+        assertEquals(EngineId.FAKE, HanselSettings(demoMode = true).effectivePrimaryEngine)
         assertNull(HanselSettings(comparisonMode = ComparisonMode.SHADOW, shadowEngine = EngineId.VALHALLA).effectiveShadowEngine)
-        // With servers on, shadow works and must not duplicate the primary.
-        val on = HanselSettings(useExternalServers = true, comparisonMode = ComparisonMode.SHADOW, shadowEngine = EngineId.VALHALLA)
-        assertEquals(EngineId.VALHALLA, on.effectiveShadowEngine)
-        assertEquals(EngineId.VALHALLA, on.copy(primaryEngine = EngineId.VALHALLA).effectivePrimaryEngine)
-        assertNull(on.copy(primaryEngine = EngineId.VALHALLA).effectiveShadowEngine)
-        assertNull(on.copy(comparisonMode = ComparisonMode.SINGLE).effectiveShadowEngine)
     }
 }

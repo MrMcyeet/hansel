@@ -20,10 +20,8 @@ rootProject.name = "hansel"
 // Pure-JVM modules: routing logic, navigation state machine, adapters. Fast unit tests, no SDK needed.
 include(":core-model")
 include(":core-routing-api")
-include(":routing-valhalla")
-include(":routing-graphhopper")
+include(":routing-graphhopper") // GraphHopper core running inside the app on a locally built graph
 include(":core-navigation")
-include(":search")
 include(":benchmark")
 include(":offline-osm")
 include(":offline-tiles")
@@ -37,4 +35,3 @@ include(":app-phone")
 
 // Self-contained mode (Phase 3 pulled forward): on-device data pipeline and in-process GraphHopper.
 include(":offline")
-include(":routing-graphhopper-local")

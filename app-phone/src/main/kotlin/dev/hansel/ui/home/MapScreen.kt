@@ -66,6 +66,7 @@ import dev.hansel.ui.preview.RoutePreviewPanel
 import dev.hansel.ui.search.SearchMode
 import dev.hansel.ui.theme.HanselColors
 import dev.hansel.vm.MainViewModel
+import kotlinx.coroutines.launch
 
 @Composable
 fun MapScreen(
@@ -83,19 +84,24 @@ fun MapScreen(
     val settings by vm.settings.collectAsState()
     val cameraMode by vm.cameraMode.collectAsState()
     val toast by vm.toasts.collectAsState()
+    val graph = (androidx.compose.ui.platform.LocalContext.current.applicationContext as dev.hansel.HanselApp).graph
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(toast) { toast?.let { snackbar.showSnackbar(it); vm.consumeToast() } }
 
     val overlay = remember(ui, nav, pos) { vm.overlay() }
-    var mapController by remember { mutableStateOf<dev.hansel.map.MapController?>(null) }
     val navigating = nav is NavState.Navigating
     val previewing = !navigating && ui.editor != null
     var pendingTap by remember { mutableStateOf<LatLng?>(null) }
     val bottomInsetPx = with(LocalDensity.current) { (if (navigating) 150.dp else 0.dp).roundToPx() }
 
     Box(Modifier.fillMaxSize().background(HanselColors.Ink)) {
+        val offlineStatus by graph.offline.status.collectAsState()
+        val offlineGen by graph.offline.generation.collectAsState()
+        val styleUrl = remember(settings.mapTheme, settings.protomapsKey, offlineStatus.hasTiles, offlineGen) {
+            graph.offline.styleFile(settings.mapTheme)?.let { "file://" + it.absolutePath } ?: ProtomapsStyle.url(settings.mapTheme, settings.protomapsKey)
+        }
         HanselMap(
-            styleUrl = ProtomapsStyle.url(settings.mapTheme, settings.protomapsKey),
+            styleUrl = styleUrl,
             overlay = overlay,
             cameraMode = cameraMode,
             bottomInsetPx = bottomInsetPx,
@@ -115,7 +121,6 @@ fun MapScreen(
                 dragEnabled = previewing && ui.editMode,
             ),
             modifier = Modifier.fillMaxSize(),
-            onControllerReady = { mapController = it },
         )
 
         // ---- top chrome ----
@@ -128,14 +133,12 @@ fun MapScreen(
                     }
                     Spacer(Modifier.height(8.dp))
                     HomeHeader(onSearch = { onSearch(SearchMode.DESTINATION) }, onOpenSettings = onOpenSettings,
-                        onOpenEngineLab = onOpenEngineLab, onOpenTrafficLab = onOpenTrafficLab, onOpenLearningLab = onOpenLearningLab, onOpenDownloads = onOpenDownloads,
-                        onSaveMap = { mapController?.let { c -> vm.saveMapForView(c.visibleBounds()) } })
+                        onOpenEngineLab = onOpenEngineLab, onOpenTrafficLab = onOpenTrafficLab, onOpenLearningLab = onOpenLearningLab, onOpenDownloads = onOpenDownloads)
                 }
                 previewing -> PreviewHeader(ui.destination?.name ?: "Route", editMode = ui.editMode,
                     onClose = { vm.clearRoute() }, onToggleEdit = { vm.setEditMode(!ui.editMode) })
                 else -> HomeHeader(onSearch = { onSearch(SearchMode.DESTINATION) }, onOpenSettings = onOpenSettings,
-                    onOpenEngineLab = onOpenEngineLab, onOpenTrafficLab = onOpenTrafficLab, onOpenLearningLab = onOpenLearningLab, onOpenDownloads = onOpenDownloads,
-                    onSaveMap = { mapController?.let { c -> vm.saveMapForView(c.visibleBounds()) } })
+                    onOpenEngineLab = onOpenEngineLab, onOpenTrafficLab = onOpenTrafficLab, onOpenLearningLab = onOpenLearningLab, onOpenDownloads = onOpenDownloads)
             }
         }
 
@@ -171,7 +174,7 @@ fun MapScreen(
 }
 
 @Composable
-private fun HomeHeader(onSearch: () -> Unit, onOpenSettings: () -> Unit, onOpenEngineLab: () -> Unit, onOpenTrafficLab: () -> Unit, onOpenLearningLab: () -> Unit, onOpenDownloads: () -> Unit, onSaveMap: () -> Unit) {
+private fun HomeHeader(onSearch: () -> Unit, onOpenSettings: () -> Unit, onOpenEngineLab: () -> Unit, onOpenTrafficLab: () -> Unit, onOpenLearningLab: () -> Unit, onOpenDownloads: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Surface(
@@ -193,7 +196,6 @@ private fun HomeHeader(onSearch: () -> Unit, onOpenSettings: () -> Unit, onOpenE
                 DropdownMenuItem(text = { Text("Engine lab") }, onClick = { menu = false; onOpenEngineLab() })
                 DropdownMenuItem(text = { Text("Traffic lab") }, onClick = { menu = false; onOpenTrafficLab() })
                 DropdownMenuItem(text = { Text("Learning lab") }, onClick = { menu = false; onOpenLearningLab() })
-                DropdownMenuItem(text = { Text("Save map for this view") }, onClick = { menu = false; onSaveMap() })
                 DropdownMenuItem(text = { Text("Offline data") }, onClick = { menu = false; onOpenDownloads() })
                 DropdownMenuItem(text = { Text("Settings") }, onClick = { menu = false; onOpenSettings() })
             }
@@ -221,16 +223,29 @@ private fun HomePanel(vm: MainViewModel, onSearch: () -> Unit, onOpenDownloads: 
     val saved by graph.savedRoutes.list().collectAsState(initial = emptyList())
     val settings by vm.settings.collectAsState()
     val offline by graph.offline.status.collectAsState()
+    val pos by vm.position.collectAsState()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     Surface(shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp), color = HanselColors.Panel, tonalElevation = 6.dp, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            StatusLine(settings.demoMode, settings.useExternalServers, offline)
-            if (!offline.hasGraph && !settings.demoMode && !settings.useExternalServers) {
+            StatusLine(settings.demoMode, offline)
+            // First-launch setup (DESIGN §4.2): your state is pre-selected from GPS; nothing is installed until you say so.
+            if (!offline.isSelfContained && !offline.isBusy && !settings.demoMode && !settings.setupDismissed && offline.manifest.regions.isEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                dev.hansel.ui.offline.AddRegionsCard(graph.offline, pos?.point, installed = emptyList(), busy = false, tilesMaxZoom = settings.tilesMaxZoom,
+                    onInstall = { ids -> graph.offline.install(ids, settings.protomapsKey, settings.tilesMaxZoom) }, title = "Set up this phone for offline use")
+                Row {
+                    TextButton(onClick = { scope.launch { graph.settingsStore.update { it.copy(setupDismissed = true) } } }) { Text("Later") }
+                    TextButton(onClick = onOpenDownloads) { Text("More options") }
+                }
+            } else if (offline.isBusy) {
+                Spacer(Modifier.height(10.dp))
+                offline.job?.let { dev.hansel.ui.offline.JobCard(it, onCancel = { graph.offline.cancel() }, onDismiss = { graph.offline.dismissJob() }) }
+            } else if (!offline.isSelfContained && !settings.demoMode) {
                 Spacer(Modifier.height(10.dp))
                 Surface(shape = RoundedCornerShape(14.dp), color = HanselColors.PanelHi, modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenDownloads)) {
                     Column(Modifier.padding(14.dp)) {
-                        Text(if (offline.isBusy) "Building road data… ${offline.job?.detail ?: ""}" else "Set up road data", style = MaterialTheme.typography.titleMedium, color = HanselColors.Teal)
-                        Text(if (offline.isBusy) "You can keep using the map; routing starts when it finishes." else "Download Mississippi, Louisiana and Alabama (or any states) once; the phone builds its own routing graph and address search. No server needed.",
-                            color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
+                        Text(if (offline.lastError != null) "Offline build failed" else "Offline data incomplete", style = MaterialTheme.typography.titleMedium, color = HanselColors.Amber)
+                        Text(offline.lastError ?: "Open Offline data to finish setting up routing, search and map tiles.", color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall, maxLines = 3)
                     }
                 }
             }
@@ -254,7 +269,7 @@ private fun HomePanel(vm: MainViewModel, onSearch: () -> Unit, onOpenDownloads: 
                     }
                 }
             }
-            if (recents.isEmpty() && saved.isEmpty()) {
+            if (recents.isEmpty() && saved.isEmpty() && (offline.isSelfContained || settings.demoMode)) {
                 Spacer(Modifier.height(10.dp))
                 Text("Search, or long-press the map to drop a pin.", color = HanselColors.Muted)
             }
@@ -263,13 +278,13 @@ private fun HomePanel(vm: MainViewModel, onSearch: () -> Unit, onOpenDownloads: 
 }
 
 @Composable
-fun StatusLine(demoMode: Boolean, externalServers: Boolean, offline: dev.hansel.offline.OfflineStatus) {
+fun StatusLine(demoMode: Boolean, offline: dev.hansel.offline.OfflineStatus) {
     val (dot, text) = when {
         demoMode -> HanselColors.Amber to "Demo mode · fake engine"
-        externalServers -> HanselColors.Amber to "External servers on (advanced) · routing over the LAN"
-        offline.hasGraph -> HanselColors.Teal to "On-device routing · ${offline.manifest.graphRegionIds.joinToString(", ") { it.replaceFirstChar(Char::uppercase) }}"
-        offline.isBusy -> HanselColors.Amber to "Building road data…"
-        else -> HanselColors.Red to "No road data yet · routing unavailable"
+        offline.isSelfContained -> HanselColors.Teal to "Offline · ${offline.manifest.graphRegionIds.joinToString(", ") { it.substringAfter('/').replace('-', ' ').replaceFirstChar(Char::uppercase) }}"
+        offline.isBusy -> HanselColors.Amber to "Building offline data…"
+        offline.hasGraph -> HanselColors.Amber to "Routing offline · map tiles online"
+        else -> HanselColors.Red to "No offline data yet · routing unavailable"
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(8.dp).height(8.dp).background(dot, RoundedCornerShape(4.dp)))
