@@ -25,6 +25,8 @@ include(":routing-graphhopper")
 include(":core-navigation")
 include(":search")
 include(":benchmark")
+include(":offline-osm")
+include(":offline-tiles")
 
 // Android modules
 include(":storage")

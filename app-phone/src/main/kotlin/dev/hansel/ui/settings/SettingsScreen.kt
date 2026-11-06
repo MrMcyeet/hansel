@@ -56,11 +56,20 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
             colors = TopAppBarDefaults.topAppBarColors(containerColor = HanselColors.Ink))
     }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            LabCard("Servers (dev PC on your LAN — online routing, not offline)") {
-                UrlField("Valhalla", s.valhallaUrl) { v -> upd { it.copy(valhallaUrl = v) } }
-                UrlField("GraphHopper", s.graphhopperUrl) { v -> upd { it.copy(graphhopperUrl = v) } }
-                UrlField("Nominatim (search)", s.geocoderUrl) { v -> upd { it.copy(geocoderUrl = v) } }
-                ToggleRow("Demo mode (fake engine, no server)", s.demoMode) { upd { c -> c.copy(demoMode = it) } }
+            LabCard("Routing") {
+                Text("Hansel routes on this phone with its own road data (⋮ → Offline data). Nothing below is needed for that.",
+                    color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
+                ToggleRow("Demo mode (fake engine)", s.demoMode) { upd { c -> c.copy(demoMode = it) } }
+            }
+            LabCard("External engines (advanced)") {
+                ToggleRow("Use servers on my LAN", s.useExternalServers) { upd { c -> c.copy(useExternalServers = it) } }
+                if (s.useExternalServers) {
+                    Text("Valhalla / GraphHopper / Nominatim from dev-server/ in the repo. Enables the two-engine A/B lab. Plain HTTP; LAN only.",
+                        color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
+                    UrlField("Valhalla", s.valhallaUrl) { v -> upd { it.copy(valhallaUrl = v) } }
+                    UrlField("GraphHopper", s.graphhopperUrl) { v -> upd { it.copy(graphhopperUrl = v) } }
+                    UrlField("Nominatim (search)", s.geocoderUrl) { v -> upd { it.copy(geocoderUrl = v) } }
+                }
             }
             LabCard("Map") {
                 UrlField("Protomaps API key", s.protomapsKey) { v -> upd { it.copy(protomapsKey = v) } }

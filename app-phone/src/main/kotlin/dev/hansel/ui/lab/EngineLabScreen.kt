@@ -39,6 +39,7 @@ import dev.hansel.HanselApp
 import dev.hansel.benchmark.EngineScore
 import dev.hansel.benchmark.Scorecard
 import dev.hansel.model.EngineId
+import dev.hansel.storage.effectivePrimaryEngine
 import dev.hansel.routing.ComparisonMode
 import dev.hansel.routing.EngineHealth
 import dev.hansel.ui.theme.HanselColors
@@ -60,12 +61,14 @@ fun EngineLabScreen(vm: MainViewModel, onBack: () -> Unit) {
 
     suspend fun refresh() {
         val engines = graph.engines()
-        health = engines.filterKeys { it != EngineId.FAKE }.mapValues { (_, e) -> runCatching { e.healthCheck() }.getOrElse { EngineHealth(false, it.message ?: "error") } }
+        val servers = settings.useExternalServers
+        health = engines.filterKeys { it != EngineId.FAKE && (servers || it == EngineId.GRAPHHOPPER_LOCAL) }
+            .mapValues { (_, e) -> runCatching { e.healthCheck() }.getOrElse { EngineHealth(false, it.message ?: "error") } }
         val all = graph.abStore.all()
         records = all.size
         scores = Scorecard.compute(all)
     }
-    LaunchedEffect(settings.valhallaUrl, settings.graphhopperUrl) { refresh() }
+    LaunchedEffect(settings.valhallaUrl, settings.graphhopperUrl, settings.useExternalServers) { refresh() }
 
     Scaffold(
         containerColor = HanselColors.Ink,
@@ -78,7 +81,7 @@ fun EngineLabScreen(vm: MainViewModel, onBack: () -> Unit) {
             LabCard("Engines") {
                 for ((id, h) in health) {
                     Column(Modifier.fillMaxWidth()) {
-                        Text(id.name.lowercase().replaceFirstChar { it.uppercase() } + if (h.reachable) "  ·  OK, ${h.latencyMillis} ms" else "  ·  unreachable",
+                        Text(engineLabel(id) + if (h.reachable) "  ·  OK, ${h.latencyMillis} ms" else "  ·  unavailable",
                             color = if (h.reachable) HanselColors.Teal else HanselColors.Red)
                         Text(h.detail, color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
                     }
@@ -86,11 +89,14 @@ fun EngineLabScreen(vm: MainViewModel, onBack: () -> Unit) {
                 if (health.isEmpty()) Text("Checking…", color = HanselColors.Muted)
             }
             LabCard("Primary engine") {
+                val choices = if (settings.useExternalServers) listOf(EngineId.GRAPHHOPPER_LOCAL, EngineId.VALHALLA, EngineId.GRAPHHOPPER) else listOf(EngineId.GRAPHHOPPER_LOCAL)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for (e in listOf(EngineId.VALHALLA, EngineId.GRAPHHOPPER)) FilterChip(selected = settings.primaryEngine == e, onClick = {
+                    for (e in choices) FilterChip(selected = settings.effectivePrimaryEngine == e, onClick = {
                         scope.launch { graph.settingsStore.update { it.copy(primaryEngine = e, shadowEngine = if (e == EngineId.VALHALLA) EngineId.GRAPHHOPPER else EngineId.VALHALLA) } }
-                    }, label = { Text(e.name.lowercase()) })
+                    }, label = { Text(engineLabel(e)) })
                 }
+                if (!settings.useExternalServers) Text("Valhalla and server GraphHopper appear here once \"Use servers on my LAN\" is on in Settings. Valhalla on-device needs a native port (later).",
+                    color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
             }
             LabCard("Comparison mode") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -126,6 +132,13 @@ fun EngineLabScreen(vm: MainViewModel, onBack: () -> Unit) {
             }
         }
     }
+}
+
+fun engineLabel(e: EngineId): String = when (e) {
+    EngineId.GRAPHHOPPER_LOCAL -> "GraphHopper (on device)"
+    EngineId.GRAPHHOPPER -> "GraphHopper (server)"
+    EngineId.VALHALLA -> "Valhalla (server)"
+    EngineId.FAKE -> "Demo"
 }
 
 @Composable

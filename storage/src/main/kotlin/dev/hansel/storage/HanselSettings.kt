@@ -12,9 +12,14 @@ data class HanselSettings(
     val valhallaUrl: String = "http://192.168.1.10:8002",
     val graphhopperUrl: String = "http://192.168.1.10:8989",
     val geocoderUrl: String = "http://192.168.1.10:8080",
-    val primaryEngine: EngineId = EngineId.VALHALLA,
-    val comparisonMode: ComparisonMode = ComparisonMode.SHADOW,
-    val shadowEngine: EngineId = EngineId.GRAPHHOPPER,
+    /** Self-contained by default: GraphHopper running in-process on the locally built graph. */
+    val primaryEngine: EngineId = EngineId.GRAPHHOPPER_LOCAL,
+    val comparisonMode: ComparisonMode = ComparisonMode.SINGLE,
+    val shadowEngine: EngineId = EngineId.VALHALLA,
+    /** Advanced: talk to Valhalla/GraphHopper/Nominatim on a LAN PC. Off by default — the app runs on its own. */
+    val useExternalServers: Boolean = false,
+    /** MapLibre ambient tile cache ceiling, MB. */
+    val mapCacheMb: Int = 512,
     val protomapsKey: String = "6d0170c0f856240d",
     val mapTheme: String = "dark",
     val units: DistanceUnits = DistanceUnits.IMPERIAL,
@@ -48,15 +53,22 @@ fun HanselSettings.routingOptions(): RoutingOptions = RoutingOptions(
     etaProfile = etaProfile,
 )
 
-/** Which engine should actually answer requests, honoring demo mode. */
-val HanselSettings.effectivePrimaryEngine: EngineId
-    get() = if (demoMode) EngineId.FAKE else primaryEngine
+private val EngineId.isServer: Boolean get() = this == EngineId.VALHALLA || this == EngineId.GRAPHHOPPER
 
-/** Shadow engine, or null when comparison is off or would duplicate the primary. */
+/** Which engine should actually answer requests, honoring demo mode and the external-servers switch. */
+val HanselSettings.effectivePrimaryEngine: EngineId
+    get() = when {
+        demoMode -> EngineId.FAKE
+        primaryEngine.isServer && !useExternalServers -> EngineId.GRAPHHOPPER_LOCAL
+        else -> primaryEngine
+    }
+
+/** Shadow engine, or null when comparison is off, would duplicate the primary, or needs a server that's disabled. */
 val HanselSettings.effectiveShadowEngine: EngineId?
     get() = when {
         demoMode -> null
         comparisonMode == ComparisonMode.SINGLE -> null
-        shadowEngine == primaryEngine -> null
+        shadowEngine == effectivePrimaryEngine -> null
+        shadowEngine.isServer && !useExternalServers -> null
         else -> shadowEngine
     }

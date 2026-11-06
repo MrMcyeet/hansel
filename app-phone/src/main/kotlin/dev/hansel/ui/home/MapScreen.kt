@@ -87,6 +87,7 @@ fun MapScreen(
     LaunchedEffect(toast) { toast?.let { snackbar.showSnackbar(it); vm.consumeToast() } }
 
     val overlay = remember(ui, nav, pos) { vm.overlay() }
+    var mapController by remember { mutableStateOf<dev.hansel.map.MapController?>(null) }
     val navigating = nav is NavState.Navigating
     val previewing = !navigating && ui.editor != null
     var pendingTap by remember { mutableStateOf<LatLng?>(null) }
@@ -114,6 +115,7 @@ fun MapScreen(
                 dragEnabled = previewing && ui.editMode,
             ),
             modifier = Modifier.fillMaxSize(),
+            onControllerReady = { mapController = it },
         )
 
         // ---- top chrome ----
@@ -126,12 +128,14 @@ fun MapScreen(
                     }
                     Spacer(Modifier.height(8.dp))
                     HomeHeader(onSearch = { onSearch(SearchMode.DESTINATION) }, onOpenSettings = onOpenSettings,
-                        onOpenEngineLab = onOpenEngineLab, onOpenTrafficLab = onOpenTrafficLab, onOpenLearningLab = onOpenLearningLab, onOpenDownloads = onOpenDownloads)
+                        onOpenEngineLab = onOpenEngineLab, onOpenTrafficLab = onOpenTrafficLab, onOpenLearningLab = onOpenLearningLab, onOpenDownloads = onOpenDownloads,
+                        onSaveMap = { mapController?.let { c -> vm.saveMapForView(c.visibleBounds()) } })
                 }
                 previewing -> PreviewHeader(ui.destination?.name ?: "Route", editMode = ui.editMode,
                     onClose = { vm.clearRoute() }, onToggleEdit = { vm.setEditMode(!ui.editMode) })
                 else -> HomeHeader(onSearch = { onSearch(SearchMode.DESTINATION) }, onOpenSettings = onOpenSettings,
-                    onOpenEngineLab = onOpenEngineLab, onOpenTrafficLab = onOpenTrafficLab, onOpenLearningLab = onOpenLearningLab, onOpenDownloads = onOpenDownloads)
+                    onOpenEngineLab = onOpenEngineLab, onOpenTrafficLab = onOpenTrafficLab, onOpenLearningLab = onOpenLearningLab, onOpenDownloads = onOpenDownloads,
+                    onSaveMap = { mapController?.let { c -> vm.saveMapForView(c.visibleBounds()) } })
             }
         }
 
@@ -150,7 +154,7 @@ fun MapScreen(
                 navigating -> NavigationBar(vm, nav as NavState.Navigating, settings.units)
                 previewing && ui.editMode -> EditorPanel(vm, ui, settings.units, onAddStop = { onSearch(SearchMode.ADD_STOP) })
                 previewing -> RoutePreviewPanel(vm, ui, settings)
-                else -> HomePanel(vm, onSearch = { onSearch(SearchMode.DESTINATION) })
+                else -> HomePanel(vm, onSearch = { onSearch(SearchMode.DESTINATION) }, onOpenDownloads = onOpenDownloads)
             }
         }
 
@@ -167,7 +171,7 @@ fun MapScreen(
 }
 
 @Composable
-private fun HomeHeader(onSearch: () -> Unit, onOpenSettings: () -> Unit, onOpenEngineLab: () -> Unit, onOpenTrafficLab: () -> Unit, onOpenLearningLab: () -> Unit, onOpenDownloads: () -> Unit) {
+private fun HomeHeader(onSearch: () -> Unit, onOpenSettings: () -> Unit, onOpenEngineLab: () -> Unit, onOpenTrafficLab: () -> Unit, onOpenLearningLab: () -> Unit, onOpenDownloads: () -> Unit, onSaveMap: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Surface(
@@ -189,7 +193,8 @@ private fun HomeHeader(onSearch: () -> Unit, onOpenSettings: () -> Unit, onOpenE
                 DropdownMenuItem(text = { Text("Engine lab") }, onClick = { menu = false; onOpenEngineLab() })
                 DropdownMenuItem(text = { Text("Traffic lab") }, onClick = { menu = false; onOpenTrafficLab() })
                 DropdownMenuItem(text = { Text("Learning lab") }, onClick = { menu = false; onOpenLearningLab() })
-                DropdownMenuItem(text = { Text("Offline maps") }, onClick = { menu = false; onOpenDownloads() })
+                DropdownMenuItem(text = { Text("Save map for this view") }, onClick = { menu = false; onSaveMap() })
+                DropdownMenuItem(text = { Text("Offline data") }, onClick = { menu = false; onOpenDownloads() })
                 DropdownMenuItem(text = { Text("Settings") }, onClick = { menu = false; onOpenSettings() })
             }
         }
@@ -210,14 +215,25 @@ private fun PreviewHeader(title: String, editMode: Boolean, onClose: () -> Unit,
 }
 
 @Composable
-private fun HomePanel(vm: MainViewModel, onSearch: () -> Unit) {
+private fun HomePanel(vm: MainViewModel, onSearch: () -> Unit, onOpenDownloads: () -> Unit) {
     val graph = (androidx.compose.ui.platform.LocalContext.current.applicationContext as dev.hansel.HanselApp).graph
     val recents by graph.recentPlaces.recents(8).collectAsState(initial = emptyList())
     val saved by graph.savedRoutes.list().collectAsState(initial = emptyList())
     val settings by vm.settings.collectAsState()
+    val offline by graph.offline.status.collectAsState()
     Surface(shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp), color = HanselColors.Panel, tonalElevation = 6.dp, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            StatusLine(settings.demoMode, settings.valhallaUrl)
+            StatusLine(settings.demoMode, settings.useExternalServers, offline)
+            if (!offline.hasGraph && !settings.demoMode && !settings.useExternalServers) {
+                Spacer(Modifier.height(10.dp))
+                Surface(shape = RoundedCornerShape(14.dp), color = HanselColors.PanelHi, modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenDownloads)) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text(if (offline.isBusy) "Building road data… ${offline.job?.detail ?: ""}" else "Set up road data", style = MaterialTheme.typography.titleMedium, color = HanselColors.Teal)
+                        Text(if (offline.isBusy) "You can keep using the map; routing starts when it finishes." else "Download Mississippi, Louisiana and Alabama (or any states) once; the phone builds its own routing graph and address search. No server needed.",
+                            color = HanselColors.Muted, style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
             if (recents.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 Text("Recent", style = MaterialTheme.typography.labelSmall)
@@ -247,9 +263,14 @@ private fun HomePanel(vm: MainViewModel, onSearch: () -> Unit) {
 }
 
 @Composable
-fun StatusLine(demoMode: Boolean, valhallaUrl: String) {
-    val (dot, text) = if (demoMode) HanselColors.Amber to "Demo mode · fake engine, no server"
-    else HanselColors.Teal to "Online routing · dev server ${valhallaUrl.removePrefix("http://").substringBefore(':')}"
+fun StatusLine(demoMode: Boolean, externalServers: Boolean, offline: dev.hansel.offline.OfflineStatus) {
+    val (dot, text) = when {
+        demoMode -> HanselColors.Amber to "Demo mode · fake engine"
+        externalServers -> HanselColors.Amber to "External servers on (advanced) · routing over the LAN"
+        offline.hasGraph -> HanselColors.Teal to "On-device routing · ${offline.manifest.graphRegionIds.joinToString(", ") { it.replaceFirstChar(Char::uppercase) }}"
+        offline.isBusy -> HanselColors.Amber to "Building road data…"
+        else -> HanselColors.Red to "No road data yet · routing unavailable"
+    }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(8.dp).height(8.dp).background(dot, RoundedCornerShape(4.dp)))
         Spacer(Modifier.width(8.dp))

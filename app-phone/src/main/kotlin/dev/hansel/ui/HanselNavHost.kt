@@ -7,6 +7,7 @@ import androidx.navigation.compose.rememberNavController
 import dev.hansel.ui.home.MapScreen
 import dev.hansel.ui.lab.EngineLabScreen
 import dev.hansel.ui.lab.PlaceholderLabScreen
+import dev.hansel.ui.offline.OfflineDataScreen
 import dev.hansel.ui.search.SearchMode
 import dev.hansel.ui.search.SearchScreen
 import dev.hansel.ui.settings.SettingsScreen
@@ -62,13 +63,6 @@ fun HanselNavHost(vm: MainViewModel) {
                 "Observed-behavior ETA vs legal-speed-constrained profile, always labelled",
             ), onBack = { nav.popBackStack() })
         }
-        composable(Routes.DOWNLOADS) {
-            PlaceholderLabScreen("Offline maps", "Phase 3", listOf(
-                "Region / corridor / rectangle packages: tiles + per-engine graph + search index",
-                "Size preview, Wi-Fi only, pause/resume, checksum, atomic activation",
-                "Airplane-mode acceptance test (DESIGN §4.4)",
-                "Routing today is PC-hosted over the LAN — explicitly online, not offline",
-            ), onBack = { nav.popBackStack() })
-        }
+        composable(Routes.DOWNLOADS) { OfflineDataScreen(vm, onBack = { nav.popBackStack() }) }
     }
 }

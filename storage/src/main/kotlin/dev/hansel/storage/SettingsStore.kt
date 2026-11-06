@@ -39,6 +39,8 @@ class SettingsStore(context: Context) {
         val units = stringPreferencesKey("units")
         val recordTrips = booleanPreferencesKey("record_trips")
         val demoMode = booleanPreferencesKey("demo_mode")
+        val useExternalServers = booleanPreferencesKey("use_external_servers")
+        val mapCacheMb = intPreferencesKey("map_cache_mb")
         val voiceGuidance = booleanPreferencesKey("voice_guidance")
         val avoidTolls = booleanPreferencesKey("avoid_tolls")
         val avoidFerries = booleanPreferencesKey("avoid_ferries")
@@ -67,6 +69,8 @@ class SettingsStore(context: Context) {
             units = enum(this[Keys.units], d.units),
             recordTrips = this[Keys.recordTrips] ?: d.recordTrips,
             demoMode = this[Keys.demoMode] ?: d.demoMode,
+            useExternalServers = this[Keys.useExternalServers] ?: d.useExternalServers,
+            mapCacheMb = this[Keys.mapCacheMb] ?: d.mapCacheMb,
             voiceGuidance = this[Keys.voiceGuidance] ?: d.voiceGuidance,
             avoidTolls = this[Keys.avoidTolls] ?: d.avoidTolls,
             avoidFerries = this[Keys.avoidFerries] ?: d.avoidFerries,
@@ -94,6 +98,8 @@ class SettingsStore(context: Context) {
         this[Keys.units] = s.units.name
         this[Keys.recordTrips] = s.recordTrips
         this[Keys.demoMode] = s.demoMode
+        this[Keys.useExternalServers] = s.useExternalServers
+        this[Keys.mapCacheMb] = s.mapCacheMb
         this[Keys.voiceGuidance] = s.voiceGuidance
         this[Keys.avoidTolls] = s.avoidTolls
         this[Keys.avoidFerries] = s.avoidFerries

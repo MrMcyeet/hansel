@@ -78,6 +78,7 @@ class AppGraph(private val app: Application) {
 
     val locationSource = FusedLocationSource(app, scope)
     val speaker = Speaker(app)
+    val mapOffline = dev.hansel.map.MapOfflineStore(app)
 
     /** Engines are rebuilt when the server URLs change; the cache is keyed by URL so settings edits take effect immediately. */
     private val engineCache = HashMap<String, RoutingEngine>()
@@ -103,6 +104,7 @@ class AppGraph(private val app: Application) {
         NavigationHostRegistry.session = session
         NavigationHostRegistry.locationSource = locationSource
         scope.launch { settings.collect { NavigationHostRegistry.units = it.units } }
+        scope.launch { mapOffline.setAmbientCacheBytes(settings.value.mapCacheMb.toLong() shl 20) }
         // The one and only fix pump into the session. It lives here, not in the view model (dies with the activity)
         // or the foreground service (may never start: Android 14+ FGS-location start restrictions, missing
         // permission, guidance started from the car screen), so every fix reaches the session exactly once for as

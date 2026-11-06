@@ -284,6 +284,21 @@ class MainViewModel(private val graph: AppGraph, private val appContext: Context
 
     fun consumeToast() { _toasts.value = null }
 
+    /** "Save map for this view": pull the tiles for what's on screen into MapLibre's offline store. */
+    fun saveMapForView(bounds: dev.hansel.model.BoundingBox) {
+        val s = settings.value
+        val style = dev.hansel.map.ProtomapsStyle.url(s.mapTheme, s.protomapsKey)
+        val name = "Area ${java.text.SimpleDateFormat("MMM d h:mm a", java.util.Locale.US).format(java.util.Date())}"
+        viewModelScope.launch {
+            _toasts.value = "Saving map tiles for this view…"
+            var lastPct = -1
+            val res = graph.mapOffline.saveArea(style, name, bounds, appContext.resources.displayMetrics.density) { done, total, _ ->
+                if (total > 0) { val pct = (done * 100 / total).toInt(); if (pct / 10 != lastPct / 10) { lastPct = pct; _toasts.value = "Saving map… $pct%" } }
+            }
+            _toasts.value = res.fold({ "Map saved (${name})" }, { "Map save failed: ${it.message}" })
+        }
+    }
+
     /** Map overlay for the current screen state. */
     fun overlay(): MapOverlay {
         val u = _ui.value
