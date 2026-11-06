@@ -206,7 +206,7 @@ class RouteEditor(initial: RouteRequest) {
 
     /**
      * Builds the request for a mid-trip reroute (DESIGN §15 Phase 2 "rerouting with preserved constraints"):
-     * origin becomes the vehicle; shaping points and lock anchors already passed are dropped; real stops are kept.
+     * origin becomes the vehicle; shaping points, lock anchors and stops already passed are dropped.
      * Does not touch the editor's own history: the result is for the rerouter, not an edit.
      */
     fun forReroute(currentRoute: Route, position: LatLng, heading: Double?, passedAlongMeters: Double, passedSlackMeters: Double = 150.0): RouteRequest {
@@ -214,10 +214,9 @@ class RouteEditor(initial: RouteRequest) {
         val cum = GeoMath.cumulativeDistances(currentRoute.geometry)
         fun along(p: LatLng) = GeoMath.projectOntoPolyline(p, currentRoute.geometry, cum)?.alongMeters ?: Double.MAX_VALUE
         val cutoff = passedAlongMeters - passedSlackMeters
-        val remaining = r.intermediate.filter { wp ->
-            val isStop = wp.type == WaypointType.STOP || wp.type == WaypointType.STOP_THROUGH
-            isStop || along(wp.point) > cutoff
-        }
+        // Everything already behind the vehicle is dropped — shaping points and visited stops alike. Stops sit on
+        // the route geometry, so their along-distance is reliable; a stop ahead of the cutoff is still to be visited.
+        val remaining = r.intermediate.filter { wp -> along(wp.point) > cutoff }
         val locks = r.locks.mapNotNull { lock ->
             val keep = lock.anchors.filter { along(it) > cutoff }
             if (keep.size >= 2) lock.copy(anchors = keep) else null

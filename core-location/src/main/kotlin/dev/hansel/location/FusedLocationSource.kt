@@ -15,10 +15,12 @@ import dev.hansel.model.LatLng
 import dev.hansel.navigation.LocationSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
@@ -28,8 +30,8 @@ import kotlin.coroutines.resume
  * collector (map, navigation session, foreground service, recorder) and torn down [stopTimeoutMillis] after the last
  * one leaves, so a configuration change does not restart GPS.
  *
- * Permissions: the caller must have granted `ACCESS_FINE_LOCATION` (see [LocationPermissions]) before collecting
- * [fixes]; this class does not check and the provider will throw `SecurityException` otherwise.
+ * Permissions: `ACCESS_FINE_LOCATION` (see [LocationPermissions]) must be granted for fixes to arrive. Collecting
+ * before the grant is safe: the provider's `SecurityException` is swallowed and the subscription retried periodically.
  *
  * Raw measurements only: speed and bearing are passed through as the provider reports them, never clamped (DESIGN §6.1).
  */
@@ -39,6 +41,8 @@ class FusedLocationSource(
     private val intervalMillis: Long = 1_000,
     private val minUpdateMillis: Long = 500,
     private val stopTimeoutMillis: Long = 5_000,
+    /** How long to wait before re-subscribing after a permission failure (see [fixes]). */
+    private val permissionRetryMillis: Long = 2_000,
 ) : LocationSource {
     private val client: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(context.applicationContext)
 
@@ -62,6 +66,10 @@ class FusedLocationSource(
     }
 
     override val fixes: Flow<Fix> = upstream
+        // Without ACCESS_FINE_LOCATION the provider fails with SecurityException (synchronously or via the Task). The
+        // shared upstream runs in the app scope, so letting it fail would crash the process on first run before the
+        // user has answered the permission prompt. Back off and retry until the grant lands.
+        .retryWhen { cause, _ -> if (cause is SecurityException) { delay(permissionRetryMillis); true } else false }
         .onEach { lastKnown = it }
         .shareIn(scope, SharingStarted.WhileSubscribed(stopTimeoutMillis = stopTimeoutMillis, replayExpirationMillis = 0), replay = 1)
 

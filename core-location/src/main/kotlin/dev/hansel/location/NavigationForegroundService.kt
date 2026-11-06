@@ -24,15 +24,15 @@ import kotlinx.coroutines.launch
 
 /**
  * Keeps navigation alive with the screen off (DESIGN §8, §13: no location collection without a visible notification).
- * It projects [NavigationHostRegistry.session]'s state into the ongoing notification and pumps
- * [NavigationHostRegistry.locationSource] fixes into the session. It owns nothing else; the app sets up the registry.
+ * It projects [NavigationHostRegistry.session]'s state into the ongoing notification and keeps the process in the
+ * foreground so the app's fix pump (see `AppGraph`) keeps running. It deliberately does *not* feed fixes into the
+ * session itself: doing so as well as the app would double-feed, and the service is not guaranteed to start.
  *
  * Start with [start] once a route is active and `ACCESS_FINE_LOCATION` is granted; it stops itself when the session
  * goes Idle or Arrived.
  */
 class NavigationForegroundService : LifecycleService() {
     private var stateJob: Job? = null
-    private var fixJob: Job? = null
     private var stopJob: Job? = null
 
     override fun onCreate() {
@@ -60,7 +60,6 @@ class NavigationForegroundService : LifecycleService() {
 
     private fun observe() {
         stateJob?.cancel()
-        fixJob?.cancel()
         val session = NavigationHostRegistry.session ?: return
 
         stateJob = lifecycleScope.launch {
@@ -81,12 +80,6 @@ class NavigationForegroundService : LifecycleService() {
                     }
                 }
         }
-
-        fixJob = lifecycleScope.launch {
-            // The source is set by the app; if it's absent we still keep the notification so the UI can drive onFix.
-            val source = NavigationHostRegistry.locationSource ?: return@launch
-            source.fixes.collect { fix -> NavigationHostRegistry.session?.onFix(fix) }
-        }
     }
 
     private fun scheduleStop(delayMillis: Long) {
@@ -103,13 +96,13 @@ class NavigationForegroundService : LifecycleService() {
     }
 
     private fun stopForegroundAndSelf() {
-        stateJob?.cancel(); fixJob?.cancel()
+        stateJob?.cancel()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
     override fun onDestroy() {
-        stateJob?.cancel(); fixJob?.cancel(); stopJob?.cancel()
+        stateJob?.cancel(); stopJob?.cancel()
         super.onDestroy()
     }
 

@@ -24,7 +24,12 @@ data class RouteProgress(
 ) {
     val upcoming: Maneuver get() = route.maneuvers[upcomingManeuverIndex]
     val following: Maneuver? get() = route.maneuvers.getOrNull(upcomingManeuverIndex + 1)
-    val isNearArrival: Boolean get() = upcoming.type.isArrival && distanceToUpcomingMeters < 40.0
+    /**
+     * Approaching the *final* arrival. Intermediate stops also carry ARRIVE maneuvers (Valhalla emits one per leg,
+     * the fake engine too), so this must not fire for them or the trip would end at the first stop.
+     */
+    val isNearArrival: Boolean get() =
+        upcoming.type.isArrival && upcomingManeuverIndex == route.maneuvers.lastIndex && distanceToUpcomingMeters < 40.0
 }
 
 /**

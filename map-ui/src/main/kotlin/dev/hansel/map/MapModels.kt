@@ -34,7 +34,8 @@ enum class CameraMode {
 }
 
 class MapGestures(
-    val onRouteTap: (routeId: String) -> Unit = {},
+    /** A tap landed on a drawn route; [at] is where, so the host can pick a stretch of it. */
+    val onRouteTap: (routeId: String, at: LatLng?) -> Unit = { _, _ -> },
     val onMapTap: (LatLng) -> Unit = {},
     val onLongPress: (LatLng) -> Unit = {},
     /** The user grabbed the selected route at [grab] and released at [drop]. */

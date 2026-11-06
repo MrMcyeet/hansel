@@ -28,6 +28,7 @@ import dev.hansel.storage.TripRecorder
 import dev.hansel.storage.effectivePrimaryEngine
 import dev.hansel.storage.effectiveShadowEngine
 import dev.hansel.storage.routingOptions
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -92,7 +93,9 @@ class MainViewModel(private val graph: AppGraph, private val appContext: Context
                 .debounce(250)
                 .collectLatest { st ->
                     _ui.update { it.copy(editor = st) }
-                    route(st.request)
+                    // adoptRerouted() bumps the revision too; while navigating the session already holds that
+                    // result, so re-routing here would only double the server calls and the A/B log entries.
+                    if (navState.value !is NavState.Navigating) route(st.request)
                 }
         }
         // Session events → speech, editor sync, recorder outcome.
@@ -147,7 +150,16 @@ class MainViewModel(private val graph: AppGraph, private val appContext: Context
             _ui.update { it.copy(loading = true, error = null) }
             val s = settings.value
             val req = request.copy(options = s.routingOptions())
-            val res = graph.orchestrator().route(req, s.effectivePrimaryEngine, s.comparisonMode, s.effectiveShadowEngine)
+            // Engines promise not to throw for routing failures, but a malformed server URL from Settings throws
+            // IllegalArgumentException out of OkHttp before any of that; keep it on screen instead of crashing.
+            val res = try {
+                graph.orchestrator().route(req, s.effectivePrimaryEngine, s.comparisonMode, s.effectiveShadowEngine)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _ui.update { it.copy(loading = false, error = "Routing failed: ${e.message ?: e.javaClass.simpleName}") }
+                return@launch
+            }
             val keepSelection = _ui.value.selectedRouteId?.let { id -> res.routes.firstOrNull { it.id == id }?.id }
             _ui.update { it.copy(loading = false, result = res, selectedRouteId = keepSelection ?: res.routes.firstOrNull()?.id, error = res.error?.let(::describe)) }
             if (res.isSuccess && navState.value !is NavState.Navigating) graph.session.preview(res, 0)
@@ -221,7 +233,8 @@ class MainViewModel(private val graph: AppGraph, private val appContext: Context
         val route = u.selectedRoute ?: return
         val others = u.routes.filter { it.id != route.id }
         graph.session.start(route, others)
-        NavigationForegroundService.start(appContext)
+        if (dev.hansel.location.LocationPermissions.canStartNavigationService(appContext)) NavigationForegroundService.start(appContext)
+        else _toasts.value = "Location permission missing: guidance runs only while the app is open"
         _cameraMode.value = CameraMode.FOLLOW
         graph.abLogger.markChosen(route.requestId, route)
         if (settings.value.recordTrips) viewModelScope.launch {
@@ -245,7 +258,12 @@ class MainViewModel(private val graph: AppGraph, private val appContext: Context
     fun setCamera(mode: CameraMode) { _cameraMode.value = mode }
 
     private fun onArrived(route: Route) {
-        NavigationForegroundService.stop(appContext)
+        // The session stays in Arrived (the foreground service lingers ~5 s on its own); the UI goes back to Home
+        // instead of re-showing the finished route's preview with a stale "Start".
+        routeJob?.cancel()
+        editorFlow.value = null
+        _ui.value = RoutingUi()
+        _cameraMode.value = CameraMode.CENTER_POSITION
         viewModelScope.launch {
             val summary = graph.tripRecorder.stop()
             if (summary != null && activeRecordingRequestId != null) {

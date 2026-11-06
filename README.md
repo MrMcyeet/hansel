@@ -97,3 +97,14 @@ Install: `adb install -r app-phone/build/outputs/apk/debug/app-phone-debug.apk`.
 Map data © OpenStreetMap contributors (ODbL). Tiles: Protomaps hosted API (non-commercial key). Routing: Valhalla
 (MIT), GraphHopper (Apache-2.0). Search: Nominatim (GPL-2.0, self-hosted). MapLibre Native (BSD-2). The public
 `tile.openstreetmap.org` service is not used. HERE/TomTom are not integrated yet; see DESIGN §7.2 before adding keys.
+
+## Known gaps from the first independent review (not yet fixed)
+
+- Guidance started from the Android Auto screen bypasses the phone's `startNavigation()`: fixes reach the session, but
+  no foreground service, trip recording, A/B "chosen" mark or TTS for that trip (DESIGN §8 same-session goal).
+- `NavigationSession.snapshot()/restore()` exist and are tested, but nothing persists them yet (DESIGN §12 crash recovery).
+- `NavigationSession.onFix` vs. the reroute job is not thread-confined; a one-fix stale state write is possible.
+- Corridor-lock anchors are positioned on the straight chord through all waypoints; on out-and-back trips they can land in
+  the wrong leg. The validator surfaces it as a `LockViolated` error rather than silently ignoring it.
+- A loop route (origin ≈ destination) can "arrive" on the first fix.
+- The MapView is recreated when returning from Search/Settings (style re-download); cosmetic.

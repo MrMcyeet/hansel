@@ -106,13 +106,14 @@ class RouteEditorTest {
         ed.addStop(Place("s", "Wiggins", point = LatLng(30.8585, -89.1356)), index = 1)
         val route3 = engine.route(ed.request).primary!!
         val cum = dev.hansel.model.GeoMath.cumulativeDistances(route3.geometry)
-        val passed = cum.last() * 0.5
+        val passed = cum.last() * 0.75
         val pos = dev.hansel.model.GeoMath.pointAlong(route3.geometry, passed, cum)
         val rr = ed.forReroute(route3, pos, 180.0, passed)
         assertEquals("Current location", rr.origin.name)
         assertTrue(rr.waypoints.none { it.id == early.id }, "early shaping point should be dropped")
         assertTrue(rr.waypoints.any { it.id == late.id }, "late shaping point should be kept")
-        assertTrue(rr.waypoints.any { it.name == "Wiggins" }, "stops are always kept")
+        // Wiggins sits near the midpoint; at 75% along it has been visited and must be dropped.
+        assertTrue(rr.waypoints.none { it.name == "Wiggins" }, "a passed stop must not be revisited on reroute")
         assertEquals(gulfport.name, rr.destination.name)
     }
 

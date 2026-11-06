@@ -71,10 +71,11 @@ fun SearchScreen(vm: MainViewModel, mode: SearchMode, onDone: () -> Unit) {
         queries.debounce(350).collectLatest { q ->
             if (q.length < 3) { results = emptyList(); return@collectLatest }
             loading = true; error = null
-            val geocoder = graph.geocoder()
-            results = geocoder.search(q, pos?.point, limit = 10)
+            val geocoder = runCatching { graph.geocoder() }.getOrNull()
+            results = if (geocoder == null) emptyList() else geocoder.search(q, pos?.point, limit = 10)
             loading = false
-            if (results.isEmpty()) error = "No results (is the Nominatim server reachable? Settings → Servers)"
+            if (geocoder == null) error = "Search server URL is invalid (Settings → Servers; include http://)"
+            else if (results.isEmpty()) error = "No results (is the Nominatim server reachable? Settings → Servers)"
         }
     }
 

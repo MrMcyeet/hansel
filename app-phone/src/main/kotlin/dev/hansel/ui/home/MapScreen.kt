@@ -89,7 +89,6 @@ fun MapScreen(
     val overlay = remember(ui, nav, pos) { vm.overlay() }
     val navigating = nav is NavState.Navigating
     val previewing = !navigating && ui.editor != null
-    var lastTap by remember { mutableStateOf<LatLng?>(null) }
     var pendingTap by remember { mutableStateOf<LatLng?>(null) }
     val bottomInsetPx = with(LocalDensity.current) { (if (navigating) 150.dp else 0.dp).roundToPx() }
 
@@ -100,8 +99,9 @@ fun MapScreen(
             cameraMode = cameraMode,
             bottomInsetPx = bottomInsetPx,
             gestures = MapGestures(
-                onRouteTap = { id -> vm.onRouteTapped(id, lastTap) },
-                onMapTap = { p -> lastTap = p; if (!previewing && !navigating) pendingTap = p },
+                onRouteTap = { id, at -> vm.onRouteTapped(id, at) },
+                // A plain tap does nothing; dropping a pin is long-press (see the Home panel hint).
+                onMapTap = { },
                 onLongPress = { p ->
                     when {
                         previewing && ui.editMode -> vm.addThroughPoint(p)
@@ -120,6 +120,14 @@ fun MapScreen(
         Column(Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.statusBars).padding(12.dp)) {
             when {
                 navigating -> ManeuverBanner(nav as NavState.Navigating, settings.units)
+                nav is NavState.Arrived && !previewing -> {
+                    Surface(shape = RoundedCornerShape(16.dp), color = HanselColors.TealDeep, modifier = Modifier.fillMaxWidth()) {
+                        Text("Arrived", modifier = Modifier.padding(14.dp), style = MaterialTheme.typography.titleMedium, color = HanselColors.Teal)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    HomeHeader(onSearch = { onSearch(SearchMode.DESTINATION) }, onOpenSettings = onOpenSettings,
+                        onOpenEngineLab = onOpenEngineLab, onOpenTrafficLab = onOpenTrafficLab, onOpenLearningLab = onOpenLearningLab, onOpenDownloads = onOpenDownloads)
+                }
                 previewing -> PreviewHeader(ui.destination?.name ?: "Route", editMode = ui.editMode,
                     onClose = { vm.clearRoute() }, onToggleEdit = { vm.setEditMode(!ui.editMode) })
                 else -> HomeHeader(onSearch = { onSearch(SearchMode.DESTINATION) }, onOpenSettings = onOpenSettings,
@@ -232,7 +240,7 @@ private fun HomePanel(vm: MainViewModel, onSearch: () -> Unit) {
             }
             if (recents.isEmpty() && saved.isEmpty()) {
                 Spacer(Modifier.height(10.dp))
-                Text("Search, tap the map, or long-press to drop a pin.", color = HanselColors.Muted)
+                Text("Search, or long-press the map to drop a pin.", color = HanselColors.Muted)
             }
         }
     }

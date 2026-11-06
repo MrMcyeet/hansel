@@ -65,14 +65,15 @@ fun HanselMap(
                 Lifecycle.Event.ON_RESUME -> mapView.onResume()
                 Lifecycle.Event.ON_PAUSE -> mapView.onPause()
                 Lifecycle.Event.ON_STOP -> mapView.onStop()
-                Lifecycle.Event.ON_DESTROY -> mapView.onDestroy()
+                Lifecycle.Event.ON_DESTROY -> if (!mapView.isDestroyed) mapView.onDestroy()
                 else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            mapView.onDestroy()
+            // Both the lifecycle observer and this dispose path can run on teardown; destroy once.
+            if (!mapView.isDestroyed) mapView.onDestroy()
         }
     }
 
@@ -88,7 +89,8 @@ fun HanselMap(
                     val pt = map.projection.toScreenLocation(ll)
                     val hits = map.queryRenderedFeatures(pt, *MapController.ROUTE_LAYERS)
                     val id = hits.firstOrNull()?.getStringProperty("routeId")
-                    if (id != null) { currentGestures.onRouteTap(id); true } else { currentGestures.onMapTap(LatLng(ll.latitude, ll.longitude)); false }
+                    val at = LatLng(ll.latitude, ll.longitude)
+                    if (id != null) { currentGestures.onRouteTap(id, at); true } else { currentGestures.onMapTap(at); false }
                 }
                 map.addOnMapLongClickListener { ll -> currentGestures.onLongPress(LatLng(ll.latitude, ll.longitude)); true }
                 map.addOnCameraMoveStartedListener { reason ->
@@ -172,7 +174,8 @@ private fun installDragInterceptor(
                     val ll = map.projection.fromScreenLocation(PointF(ev.x, ev.y))
                     val drop = LatLng(ll.latitude, ll.longitude)
                     if (moved && abs(g.distanceTo(drop)) > 5.0) gestures().onDragShaping(g, drop)
-                    else overlay().selectedRoute?.let { gestures().onRouteTap(it.id) }
+                    // MapLibre never saw this gesture, so report the tap position ourselves (stretch picking needs it).
+                    else overlay().selectedRoute?.let { gestures().onRouteTap(it.id, g) }
                 }
                 true
             }

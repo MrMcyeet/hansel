@@ -5,6 +5,7 @@ import dev.hansel.benchmark.AbShadowLogger
 import dev.hansel.guidance.Speaker
 import dev.hansel.location.FusedLocationSource
 import dev.hansel.model.EngineId
+import dev.hansel.navigation.NavState
 import dev.hansel.navigation.NavigationHostRegistry
 import dev.hansel.navigation.NavigationSession
 import dev.hansel.navigation.RouteProgress
@@ -28,6 +29,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -99,5 +103,15 @@ class AppGraph(private val app: Application) {
         NavigationHostRegistry.session = session
         NavigationHostRegistry.locationSource = locationSource
         scope.launch { settings.collect { NavigationHostRegistry.units = it.units } }
+        // The one and only fix pump into the session. It lives here, not in the view model (dies with the activity)
+        // or the foreground service (may never start: Android 14+ FGS-location start restrictions, missing
+        // permission, guidance started from the car screen), so every fix reaches the session exactly once for as
+        // long as the process lives. GPS is only held while a route is actually being navigated; the UI and the
+        // recorder keep their own subscriptions.
+        scope.launch(Dispatchers.Main) {
+            session.state.map { it is NavState.Navigating }.distinctUntilChanged().collectLatest { navigating ->
+                if (navigating) locationSource.fixes.collect { session.onFix(it) }
+            }
+        }
     }
 }
