@@ -37,9 +37,9 @@ class Downloader(
 
     class HttpException(val code: Int, url: String) : IOException("HTTP $code for $url")
 
-    fun pbfFor(regionId: String): File = File(dir, "$regionId.osm.pbf")
-    fun partFor(regionId: String): File = File(dir, "$regionId.osm.pbf.part")
-    fun md5For(regionId: String): File = File(dir, "$regionId.osm.pbf.md5")
+    fun pbfFor(regionId: String): File = File(dir, "${fileStem(regionId)}.osm.pbf")
+    fun partFor(regionId: String): File = File(dir, "${fileStem(regionId)}.osm.pbf.part")
+    fun md5For(regionId: String): File = File(dir, "${fileStem(regionId)}.osm.pbf.md5")
 
     /** True when the final file exists and matches the stored sidecar MD5. Hashes the file (about 1 s / 100 MB). */
     suspend fun isVerified(region: Region): Boolean = withContext(Dispatchers.IO) {
@@ -76,7 +76,7 @@ class Downloader(
             // Server republished since we started: a resumed .part would be two different versions glued together.
             part.delete()
         }
-        sidecar.writeText("$expectedMd5  ${region.id}-latest.osm.pbf\n")
+        sidecar.writeText("$expectedMd5  ${fileStem(region.id)}-latest.osm.pbf\n")
 
         var restartedAfterMismatch = false
         while (true) {
@@ -198,6 +198,9 @@ class Downloader(
     private suspend fun currentContext() = kotlin.coroutines.coroutineContext
 
     companion object {
+        /** Region ids look like "us/mississippi"; the slash must not become a directory. */
+        fun fileStem(regionId: String): String = regionId.replace('/', '-')
+
         /** Geofabrik sidecar format: `<32 hex>  <filename>`; also accepts a bare hash. */
         fun parseMd5(text: String): String? =
             text.trim().split(Regex("\\s+")).firstOrNull()?.lowercase()?.takeIf { it.length == 32 && it.all { c -> c in '0'..'9' || c in 'a'..'f' } }

@@ -39,7 +39,7 @@ class OfflineLayout(context: Context) {
     val jobFile: File = File(root, "job.json")
     val progressFile: File = File(root, "progress.json")
 
-    fun pbfFor(regionId: String): File = File(osmDir, "$regionId.osm.pbf")
+    fun pbfFor(regionId: String): File = File(osmDir, "${Downloader.fileStem(regionId)}.osm.pbf")
     fun styleFile(theme: String): File = File(styleDir, "$theme.json")
     fun hostedStyleFile(theme: String): File = File(hostedStylesDir, "$theme.json")
 
