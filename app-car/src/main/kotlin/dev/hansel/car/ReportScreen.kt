@@ -4,9 +4,8 @@ import androidx.car.app.CarContext
 import androidx.car.app.CarToast
 import androidx.car.app.Screen
 import androidx.car.app.constraints.ConstraintManager
-import androidx.car.app.model.Action
-import androidx.car.app.model.Header
 import androidx.car.app.model.ItemList
+import dev.hansel.car.CarUi.titledWithBack
 import androidx.car.app.model.ListTemplate
 import androidx.car.app.model.OnClickListener
 import androidx.car.app.model.Row
@@ -34,7 +33,7 @@ class ReportScreen(carContext: CarContext) : Screen(carContext) {
             )
         }
         return ListTemplate.Builder()
-            .setHeader(Header.Builder().setTitle("Report").setStartHeaderAction(Action.BACK).build())
+            .titledWithBack(carContext, "Report")
             .setSingleList(list.build())
             .build()
     }

@@ -3,9 +3,8 @@ package dev.hansel.car
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.constraints.ConstraintManager
-import androidx.car.app.model.Action
-import androidx.car.app.model.Header
 import androidx.car.app.model.ItemList
+import dev.hansel.car.CarUi.titledWithBack
 import androidx.car.app.model.ListTemplate
 import androidx.car.app.model.OnClickListener
 import androidx.car.app.model.Row
@@ -53,12 +52,7 @@ class AlternativesScreen(carContext: CarContext, private val preview: Boolean) :
         }
 
         return ListTemplate.Builder()
-            .setHeader(
-                Header.Builder()
-                    .setTitle(if (preview) "Choose a route" else "Switch route")
-                    .setStartHeaderAction(Action.BACK)
-                    .build(),
-            )
+            .titledWithBack(carContext, if (preview) "Choose a route" else "Switch route")
             .setSingleList(list.build())
             .build()
     }
